@@ -163,7 +163,7 @@ mod marketplace {
         //Cambia el rol de un usuario registrado
         #[ink(message)]
         #[ignore]
-        pub fn cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {;
+        pub fn cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
             let mut usuario = self.get_usuario()?;
             usuario.rol = nuevo_rol;
             self.usuarios.insert(usuario.account_id, &usuario);
@@ -526,12 +526,7 @@ mod marketplace {
                 let username = "agustin".to_string();
                 let rol = Rol::Ambos;
 
-                assert_eq!(
-                    marketplace
-                        ._registrar_usuario(caller, username, rol)
-                        .is_ok(),
-                    true
-                );
+                assert_eq!(marketplace._registrar_usuario(caller, username, rol).is_ok(),true);
             }
 
             #[ink::test]
