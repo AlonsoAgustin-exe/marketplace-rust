@@ -8,17 +8,16 @@ mod marketplace {
 
     #[ink(storage)]
     pub struct Marketplace {
-        usuarios: Mapping<AccountId, Usuario>, // (id_usuario, datos_usuario) este capaz tmbn tenga
-        // que ser un vec y un mapping aparte, depende de lo que necesitemos
-        // pq si queremos obtener todos los usuarios y mostrarlos sonamos
+        // storage de usuarios
+        usuarios: Mapping<AccountId, Usuario>, // (id_usuario, datos_usuario)
 
-        // storage general y mapping para mejorar performance
+        // storage general de publicaciones y ordenes de compra
         publicaciones: Vec<Publicacion>,
         ordenes_compra: Vec<OrdenCompra>,
+
+        // storage mapping de publicaciones y ordenes de compra por usuario
         publicaciones_mapping: Mapping<AccountId, Vec<u32>>, // (id_vendedor, id's publicaciones)
-        ordenes_compra_mapping: Mapping<AccountId, Vec<u32>>, // (id_comprador, id's ordenes)
-                                                             // u32 parece ser la mejor opción, usize no existe en ink porque depende de la arquitectura
-                                                             // u64 incrementaría los costos de transacción
+        ordenes_compra_mapping: Mapping<AccountId, Vec<u32>>, // (id_comprador, id's ordenes de compra)
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
@@ -60,7 +59,7 @@ mod marketplace {
     #[derive(Debug, Clone, PartialEq)]
     pub struct Publicacion {
         id_publicacion: u64,
-        nombre_producto: String,
+        nombre: String,
         descripcion: String,
         precio: u64,
         categoria: Categoria,
@@ -161,12 +160,23 @@ mod marketplace {
                 .ok_or(ErrorSistema::UsuarioNoRegistrado)
         }
 
+        //Cambia el rol de un usuario registrado
+        #[ink(message)]
+        #[ignore]
+        pub fn cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
+            let caller = self.env().caller();
+            let mut usuario = self.get_usuario(caller)?;
+            usuario.rol = nuevo_rol;
+            self.usuarios.insert(caller, &usuario);
+            Ok(usuario)
+        }
+
         //Crea una publicacion
         #[ink(message)]
         #[ignore]
         pub fn publicar(
             &mut self,
-            nombre_producto: String,
+            nombre: String,
             descripcion: String,
             precio: u64,
             categoria: Categoria,
@@ -174,7 +184,7 @@ mod marketplace {
         ) -> Result<Publicacion, ErrorSistema> {
             self._publicar(
                 self.env().caller(),
-                nombre_producto,
+                nombre,
                 descripcion,
                 precio,
                 categoria,
@@ -186,7 +196,7 @@ mod marketplace {
         fn _publicar(
             &mut self,
             caller: AccountId,
-            nombre_producto: String,
+            nombre: String,
             descripcion: String,
             precio: u64,
             categoria: Categoria,
@@ -199,7 +209,7 @@ mod marketplace {
             //Crea la publicacion
             let publicacion = Publicacion::new(
                 self.publicaciones.len() as u64,
-                nombre_producto,
+                nombre,
                 descripcion,
                 precio,
                 categoria,
@@ -389,7 +399,7 @@ mod marketplace {
     impl Publicacion {
         pub fn new(
             id_publicacion: u64,
-            nombre_producto: String,
+            nombre: String,
             descripcion: String,
             precio: u64,
             categoria: Categoria,
@@ -398,7 +408,7 @@ mod marketplace {
         ) -> Publicacion {
             Publicacion {
                 id_publicacion,
-                nombre_producto,
+                nombre,
                 descripcion,
                 precio,
                 categoria,
@@ -587,7 +597,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller.clone(), username, rol);
 
-                let nombre_producto = "Remera".to_string();
+                let nombre = "Remera".to_string();
                 let descripcion = "algodon".to_string();
                 let precio = 12000;
                 let categoria = Categoria::Ropa;
@@ -597,7 +607,7 @@ mod marketplace {
                     marketplace
                         ._publicar(
                             caller,
-                            nombre_producto,
+                            nombre,
                             descripcion,
                             precio,
                             categoria,
@@ -614,7 +624,7 @@ mod marketplace {
 
                 let caller = AccountId::from([0xAA; 32]);
 
-                let nombre_producto = "Remera".to_string();
+                let nombre = "Remera".to_string();
                 let descripcion = "algodon".to_string();
                 let precio = 12000;
                 let categoria = Categoria::Ropa;
@@ -622,7 +632,7 @@ mod marketplace {
 
                 let result = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -642,7 +652,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller.clone(), username, rol);
 
-                let nombre_producto = "Remera".to_string();
+                let nombre = "Remera".to_string();
                 let descripcion = "algodon".to_string();
                 let precio = 12000;
                 let categoria = Categoria::Ropa;
@@ -650,7 +660,7 @@ mod marketplace {
 
                 let result = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -674,7 +684,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller.clone(), username, rol);
 
-                let mut nombre_producto = "Remera".to_string();
+                let mut nombre = "Remera".to_string();
                 let mut descripcion = "algodon".to_string();
                 let mut precio = 12000;
                 let mut categoria = Categoria::Ropa;
@@ -682,14 +692,14 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
                     stock,
                 );
 
-                nombre_producto = "Pantalon".to_string();
+                nombre = "Pantalon".to_string();
                 descripcion = "Jean".to_string();
                 precio = 20000;
                 categoria = Categoria::Ropa;
@@ -697,7 +707,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -759,7 +769,7 @@ mod marketplace {
                 let _ = marketplace._registrar_usuario(caller1.clone(), username1, rol1);
                 let _ = marketplace._registrar_usuario(caller2.clone(), username2, rol2);
 
-                let mut nombre_producto = "Remera".to_string();
+                let mut nombre = "Remera".to_string();
                 let mut descripcion = "algodon".to_string();
                 let mut precio = 12000;
                 let mut categoria = Categoria::Ropa;
@@ -767,14 +777,14 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller1,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
                     stock,
                 );
 
-                nombre_producto = "Pantalon".to_string();
+                nombre = "Pantalon".to_string();
                 descripcion = "Jean".to_string();
                 precio = 20000;
                 categoria = Categoria::Ropa;
@@ -782,14 +792,14 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller1,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
                     stock,
                 );
 
-                nombre_producto = "Notebook".to_string();
+                nombre = "Notebook".to_string();
                 descripcion = "Ryzen 7".to_string();
                 precio = 200000;
                 categoria = Categoria::Computacion;
@@ -797,7 +807,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller2,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -836,7 +846,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller, username, rol);
 
-                let nombre_producto = "Remera".to_string();
+                let nombre = "Remera".to_string();
                 let descripcion = "algodon".to_string();
                 let precio = 12000;
                 let categoria = Categoria::Ropa;
@@ -844,7 +854,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -892,7 +902,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller.clone(), username, rol);
 
-                let mut nombre_producto = "Remera".to_string();
+                let mut nombre = "Remera".to_string();
                 let mut descripcion = "algodon".to_string();
                 let mut precio = 12000;
                 let mut categoria = Categoria::Ropa;
@@ -900,7 +910,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -922,7 +932,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller, username, rol);
 
-                let nombre_producto = "Remera".to_string();
+                let nombre = "Remera".to_string();
                 let descripcion = "algodon".to_string();
                 let precio = 12000;
                 let categoria = Categoria::Ropa;
@@ -930,7 +940,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -956,7 +966,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller, username, rol);
 
-                let mut nombre_producto = "Remera".to_string();
+                let mut nombre = "Remera".to_string();
                 let mut descripcion = "algodon".to_string();
                 let mut precio = 12000;
                 let mut categoria = Categoria::Ropa;
@@ -964,7 +974,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -973,7 +983,7 @@ mod marketplace {
 
                 let _ = marketplace._ordenar_compra(caller, 0_u32);
 
-                nombre_producto = "Pantalon".to_string();
+                nombre = "Pantalon".to_string();
                 descripcion = "Jean".to_string();
                 precio = 20000;
                 categoria = Categoria::Ropa;
@@ -981,7 +991,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -1042,7 +1052,7 @@ mod marketplace {
                 let _ = marketplace._registrar_usuario(caller1, username1, rol1);
                 let _ = marketplace._registrar_usuario(caller2, username2, rol2);
 
-                let mut nombre_producto = "Remera".to_string();
+                let mut nombre = "Remera".to_string();
                 let mut descripcion = "algodon".to_string();
                 let mut precio = 12000;
                 let mut categoria = Categoria::Ropa;
@@ -1050,7 +1060,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller1,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
@@ -1059,7 +1069,7 @@ mod marketplace {
 
                 let _ = marketplace._ordenar_compra(caller2, 0_u32);
 
-                nombre_producto = "Pantalon".to_string();
+                nombre = "Pantalon".to_string();
                 descripcion = "Jean".to_string();
                 precio = 20000;
                 categoria = Categoria::Ropa;
@@ -1067,7 +1077,7 @@ mod marketplace {
 
                 let _ = marketplace._publicar(
                     caller1,
-                    nombre_producto,
+                    nombre,
                     descripcion,
                     precio,
                     categoria,
