@@ -163,11 +163,10 @@ mod marketplace {
         //Cambia el rol de un usuario registrado
         #[ink(message)]
         #[ignore]
-        pub fn cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
-            let caller = self.env().caller();
-            let mut usuario = self.get_usuario(caller)?;
+        pub fn cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {;
+            let mut usuario = self.get_usuario()?;
             usuario.rol = nuevo_rol;
-            self.usuarios.insert(caller, &usuario);
+            self.usuarios.insert(usuario.account_id, &usuario);
             Ok(usuario)
         }
 
