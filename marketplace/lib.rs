@@ -8,14 +8,14 @@ mod marketplace {
 
     #[ink(storage)]
     pub struct Marketplace {
-        // storage de usuarios
+        /// storage de usuarios
         usuarios: Mapping<AccountId, Usuario>, // (id_usuario, datos_usuario)
 
-        // storage general de publicaciones y ordenes de compra
+        /// storage general de publicaciones y ordenes de compra
         publicaciones: Vec<Publicacion>,
         ordenes_compra: Vec<OrdenCompra>,
 
-        // storage mapping de publicaciones y ordenes de compra por usuario
+        /// storage mapping de publicaciones y ordenes de compra por usuario
         publicaciones_mapping: Mapping<AccountId, Vec<u32>>, // (id_vendedor, id's publicaciones)
         ordenes_compra_mapping: Mapping<AccountId, Vec<u32>>, // (id_comprador, id's ordenes de compra)
     }
@@ -23,82 +23,161 @@ mod marketplace {
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
     #[derive(Debug, PartialEq)]
+    /// Define los posibles errores del sistema que pueden ocurrir
+    /// durante la ejecución del contrato.
     pub enum ErrorSistema {
+        /// El usuario no está registrado en el sistema.
         UsuarioNoRegistrado,
+
+        /// El usuario ya se encuentra registrado.
         UsuarioYaRegistrado,
+
+        /// El usuario no posee permisos de vendedor.
         UsuarioNoEsVendedor,
+
+        /// El usuario no posee permisos de comprador.
         UsuarioNoEsComprador,
+
+        /// El vendedor especificado no existe.
         VendedorNoExistente,
+
+        /// El vendedor no tiene publicaciones registradas.
         VendedorSinPublicaciones,
+
+        /// La publicación no posee stock disponible.
         PublicacionSinStock,
+
+        /// La publicación solicitada no existe.
         PublicacionNoExistente,
+
+        /// Error por desbordamiento negativo al manipular publicaciones.
         UnderflowPublicaciones,
+
+        /// Error por desbordamiento negativo al manipular órdenes.
         UnderflowOrdenes,
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
     #[derive(Debug, Clone, PartialEq)]
+    /// Representa un usuario registrado dentro del sistema.
     pub struct Usuario {
+        /// Nombre de usuario asociado a la cuenta.
         username: String,
+
+        /// Rol asignado al usuario dentro del sistema.
         rol: Rol,
+
+        /// Identificador único de la cuenta en la red.
         account_id: AccountId,
     }
+
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
     #[derive(Debug, Clone, PartialEq)]
+    /// Define los posibles roles que un usuario puede tener dentro del sistema.
     pub enum Rol {
+        /// Usuario con permisos para realizar compras.
         Comprador,
+
+        /// Usuario con permisos para publicar y vender productos.
         Vendedor,
+
+        /// Usuario con permisos tanto de comprador como de vendedor.
         Ambos,
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
     #[derive(Debug, Clone, PartialEq)]
+    /// Representa una publicación disponible dentro del sistema.
     pub struct Publicacion {
+        /// Identificador único de la publicación.
         id_publicacion: u64,
+
+        /// Nombre del producto o ítem publicado.
         nombre: String,
+
+        /// Descripción del producto.
         descripcion: String,
+
+        /// Precio del producto en la unidad base del token.
         precio: u64,
+
+        /// Categoría a la que pertenece el producto.
         categoria: Categoria,
+
+        /// Cantidad disponible en stock.
         stock: u64,
+
+        /// Identificador de cuenta del vendedor asociado.
         vendedor_id: AccountId,
     }
 
+
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
     #[derive(Debug, Clone, PartialEq)]
+    /// Define las categorías disponibles para las publicaciones dentro del sistema.
     pub enum Categoria {
+        /// Productos relacionados con equipos y componentes de computación.
         Computacion,
+
+        /// Prendas de vestir y accesorios.
         Ropa,
+
+        /// Herramientas manuales o eléctricas.
         Herramientas,
+
+        /// Muebles y artículos para el hogar.
         Muebles,
     }
 
-    #[ink::scale_derive(Encode, Decode, TypeInfo)]
-    #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
-    #[derive(Debug, Clone, PartialEq)]
-    pub struct OrdenCompra {
-        estado: Estado,
-        publicacion: Publicacion,
-        comprador_id: AccountId,
-        peticion_cancelacion: bool, // La peticion la hace el comprador, el vendedor acepta, esta
-                                    // logica se maneja en el método (?)
-    }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
     #[derive(Debug, Clone, PartialEq)]
+    /// Representa una orden de compra dentro del sistema.
+    pub struct OrdenCompra {
+        /// Estado actual de la orden.
+        estado: Estado,
+
+        /// Publicación asociada a la orden.
+        publicacion: Publicacion,
+
+        /// Identificador de cuenta del comprador que realizó la orden.
+        comprador_id: AccountId,
+
+        /// Indica si se ha solicitado la cancelación de la orden.
+        peticion_cancelacion: bool,
+    }
+
+
+    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+    #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
+    #[derive(Debug, Clone, PartialEq)]
+    /// Define los posibles estados de una orden de compra.
     pub enum Estado {
+        /// La orden ha sido creada pero aún no procesada.
         Pendiente,
+
+        /// La orden ha sido enviada al comprador.
         Enviada,
+
+        /// La orden ha sido recibida por el comprador.
         Recibida,
+
+        /// La orden ha sido cancelada.
         Cancelada,
     }
 
+
     impl Marketplace {
+        /// Constructor del contrato `Marketplace`.
+        ///
+        /// Inicializa el contrato con colecciones vacías para usuarios,
+        /// publicaciones, órdenes de compra y sus mapeos asociados.
         #[ink(constructor)]
         pub fn new() -> Self {
             Self {
@@ -110,24 +189,36 @@ mod marketplace {
             }
         }
 
-        //Registra usuarios que no estan en el sistema
+        /// Registra un nuevo usuario en el sistema.
+        ///
+        /// Delega la creación al método interno `_registrar_usuario`.
+        ///
+        /// # Parámetros
+        /// - `username`: Nombre de usuario a registrar.
+        /// - `rol`: Rol asignado al usuario.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` si el registro se realizó correctamente.
+        /// - `Err(ErrorSistema::UsuarioYaRegistrado)` si el usuario ya existía.
         #[ink(message)]
         #[ignore]
-        pub fn registrar_usuario(
-            &mut self,
-            username: String,
-            rol: Rol,
-        ) -> Result<Usuario, ErrorSistema> {
+        pub fn registrar_usuario(&mut self,username: String,rol: Rol,) -> Result<Usuario, ErrorSistema> {
             self._registrar_usuario(self.env().caller(), username, rol)
         }
 
-        //Funcion prueba registrar_usuario()
-        fn _registrar_usuario(
-            &mut self,
-            caller: AccountId,
-            username: String,
-            rol: Rol,
-        ) -> Result<Usuario, ErrorSistema> {
+        /// Método interno que realiza la lógica de registro de un usuario.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta que realiza el registro.
+        /// - `username`: Nombre de usuario a registrar.
+        /// - `rol`: Rol asignado al usuario.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` si el registro se realizó correctamente.
+        /// - `Err(ErrorSistema::UsuarioYaRegistrado)` si el usuario ya existía.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
+        fn _registrar_usuario( &mut self,caller: AccountId,username: String,rol: Rol,) -> Result<Usuario, ErrorSistema> {
             //Verifica si el usuario ya esta registrado
             if self.usuarios.get(caller).is_some() {
                 return Err(ErrorSistema::UsuarioYaRegistrado);
@@ -143,34 +234,85 @@ mod marketplace {
             //Almacena el nuevo usuario en el sistema
             self.usuarios.insert(caller, &usuario);
 
+            //Retorna el usuario creado
             Ok(usuario)
         }
 
-        //Retorna los datos de un usuario si existe en el sistema
+        /// Obtiene la información del usuario que llama al contrato.
+        ///
+        /// Delegará la obtención al método interno `_get_usuario`.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` con los datos del usuario.
+        /// - `Err(ErrorSistema::UsuarioNoRegistrado)` si el usuario no está registrado.
         #[ink(message)]
         #[ignore]
         pub fn get_usuario(&self) -> Result<Usuario, ErrorSistema> {
             self._get_usuario(self.env().caller())
         }
 
-        //Funcion prueba get_usuario()
+        /// Método interno que obtiene la información de un usuario específico.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del usuario a consultar.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` con los datos del usuario.
+        /// - `Err(ErrorSistema::UsuarioNoRegistrado)` si el usuario no está registrado.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _get_usuario(&self, caller: AccountId) -> Result<Usuario, ErrorSistema> {
-            self.usuarios
-                .get(caller)
-                .ok_or(ErrorSistema::UsuarioNoRegistrado)
+            self.usuarios.get(caller).ok_or(ErrorSistema::UsuarioNoRegistrado)
         }
 
-        //Cambia el rol de un usuario registrado
+        /// Cambia el rol del usuario que llama al contrato.
+        ///
+        /// Delegará la modificación al método interno `_cambiar_rol`.
+        ///
+        /// # Parámetros
+        /// - `nuevo_rol`: Nuevo rol que se asignará al usuario.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` con los datos actualizados.
+        /// - `Err(ErrorSistema::UsuarioNoRegistrado)` si el usuario no está registrado.
         #[ink(message)]
         #[ignore]
         pub fn cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
-            let mut usuario = self.get_usuario()?;
+            self._cambiar_rol(self.env().caller(), nuevo_rol)
+        }
+
+        /// Método interno que realiza la lógica de cambio de rol de un usuario.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del usuario.
+        /// - `nuevo_rol`: Nuevo rol a asignar.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` con los datos actualizados.
+        /// - `Err(ErrorSistema::UsuarioNoRegistrado)` si el usuario no está registrado.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
+        fn _cambiar_rol(&mut self, caller: AccountId, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
+            let mut usuario = self._get_usuario()?;
             usuario.rol = nuevo_rol;
             self.usuarios.insert(usuario.account_id, &usuario);
             Ok(usuario)
         }
 
-        //Crea una publicacion
+        /// Publica un nuevo producto en el marketplace para el usuario que llama al contrato.
+        ///
+        /// Delegará la creación y almacenamiento al método interno `_publicar`.
+        ///
+        /// # Parámetros
+        /// - `nombre`: Nombre del producto.
+        /// - `descripcion`: Descripción del producto.
+        /// - `precio`: Precio del producto en la unidad base del token.
+        /// - `categoria`: Categoría a la que pertenece el producto.
+        /// - `stock`: Cantidad disponible del producto.
+        ///
+        /// # Retorna
+        /// - `Ok(Publicacion)` con los datos de la nueva publicación.
+        /// - `Err(ErrorSistema)` si ocurre algún error durante el registro.
         #[ink(message)]
         #[ignore]
         pub fn publicar(
@@ -191,7 +333,22 @@ mod marketplace {
             )
         }
 
-        //Funcion prueba publicar()
+        
+        /// Método interno que realiza la lógica de creación y almacenamiento de una publicación.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del usuario que publica.
+        /// - `nombre`: Nombre del producto.
+        /// - `descripcion`: Descripción del producto.
+        /// - `precio`: Precio del producto en la unidad base del token.
+        /// - `categoria`: Categoría a la que pertenece el producto.
+        /// - `stock`: Cantidad disponible del producto.
+        ///
+        /// # Retorna
+        /// - `Ok(Publicacion)` con los datos de la publicación creada.
+        /// - `Err(ErrorSistema)` si el usuario no es vendedor, no está registrado o hay errores de indexación.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _publicar(
             &mut self,
             caller: AccountId,
