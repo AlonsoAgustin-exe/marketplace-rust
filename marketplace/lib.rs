@@ -278,7 +278,7 @@ mod marketplace {
         #[ink(message)]
         #[ignore]
         pub fn cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
-            self._cambiar_rol(self.env().caller(), nuevo_rol)
+            self._cambiar_rol(nuevo_rol)
         }
 
         /// Método interno que realiza la lógica de cambio de rol de un usuario.
@@ -292,8 +292,8 @@ mod marketplace {
         /// - `Err(ErrorSistema::UsuarioNoRegistrado)` si el usuario no está registrado.
         ///
         /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
-        fn _cambiar_rol(&mut self, caller: AccountId, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
-            let mut usuario = self._get_usuario()?;
+        fn _cambiar_rol(&mut self, nuevo_rol: Rol) -> Result<Usuario, ErrorSistema> {
+            let mut usuario = self.get_usuario()?;
             usuario.rol = nuevo_rol;
             self.usuarios.insert(usuario.account_id, &usuario);
             Ok(usuario)
@@ -734,6 +734,61 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
         }
+
+        mod tests_cambiar_rol {
+            use super::*;
+
+            #[ink::test]
+            fn tests_cambiar_rol_comprador_a_vendedor() {
+                let mut marketplace = Marketplace::new();
+                let caller = AccountId::from([0xAA; 32]);
+
+                let _ = marketplace.registrar_usuario("agustin".to_string(), Rol::Comprador);
+                let result = marketplace.cambiar_rol(Rol::Vendedor);
+
+                assert!(result.is_ok());
+                if let Ok(usuario) = result {
+                    assert_eq!(usuario.rol, Rol::Vendedor);
+                }
+            }
+
+            #[ink::test]
+            fn tests_cambiar_rol_vendedor_a_comprador() {
+                let mut marketplace = Marketplace::new();
+                let caller = AccountId::from([0xAA; 32]);
+
+                let _ = marketplace.registrar_usuario("agustin".to_string(), Rol::Vendedor);
+                let result = marketplace.cambiar_rol(Rol::Comprador);
+
+                assert!(result.is_ok());
+                if let Ok(usuario) = result {
+                    assert_eq!(usuario.rol, Rol::Comprador);
+                }
+            }
+
+            #[ink::test]
+            fn tests_cambiar_rol_a_ambos() {
+                let mut marketplace = Marketplace::new();
+                let caller = AccountId::from([0xAA; 32]);
+
+                let _ = marketplace.registrar_usuario("test".to_string(), Rol::Comprador);
+                let result = marketplace.cambiar_rol(Rol::Ambos);
+
+                assert!(result.is_ok());
+                if let Ok(usuario) = result {
+                    assert_eq!(usuario.rol, Rol::Ambos);
+                }
+            }
+
+            #[ink::test]
+            fn tests_cambiar_rol_usuario_no_registrado() {
+                let mut marketplace = Marketplace::new();
+                let caller = AccountId::from([0xAA; 32]);
+
+                let result = marketplace.cambiar_rol(Rol::Ambos);
+                assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
+            }
+        }    
 
         mod tests_publicar {
             use super::*;
