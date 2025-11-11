@@ -445,8 +445,9 @@ mod marketplace {
         pub fn ordenar_compra(
             &mut self,
             idx_publicacion: u32,
+            cantidad: u32,
         ) -> Result<OrdenCompra, ErrorSistema> {
-            self._ordenar_compra(self.env().caller(), idx_publicacion)
+            self._ordenar_compra(self.env().caller(), idx_publicacion, cantidad)
         }
 
         //Funcion prueba ordenar_compra()
@@ -454,6 +455,7 @@ mod marketplace {
             &mut self,
             caller: AccountId,
             idx_publicacion: u32,
+            cantidad: u32,
         ) -> Result<OrdenCompra, ErrorSistema> {
             // validaciones de usuario
             let usuario = self._get_usuario(caller)?;
@@ -469,10 +471,8 @@ mod marketplace {
             //Decrementar Stock
             publicacion.stock = publicacion
                 .stock
-                .checked_sub(1)
+                .checked_sub(cantidad as u64)
                 .ok_or(ErrorSistema::PublicacionSinStock)?;
-
-            // Reemplazar la publicación modificada
 
             // Reemplazar la publicación modificada
             self.publicaciones[idx_publicacion as usize] = publicacion.clone();
@@ -1043,7 +1043,7 @@ mod marketplace {
             use super::*;
 
             #[ink::test]
-            fn tests_ordenar_compra_correcto() {
+            fn tests_ordenar_compra_correcto_5_unidades() {
                 let mut marketplace = Marketplace::new();
 
                 let caller = AccountId::from([0xAA; 32]);
@@ -1067,9 +1067,9 @@ mod marketplace {
                     stock,
                 );
 
-                let orden = marketplace._ordenar_compra(caller, 0_u32);
+                let orden = marketplace._ordenar_compra(caller, 0_u32, 5_u32);
                 assert!(orden.is_ok());
-                assert!(marketplace.publicaciones[0].stock == 19);
+                assert!(marketplace.publicaciones[0].stock == 15);
             }
 
             #[ink::test]
@@ -1078,7 +1078,7 @@ mod marketplace {
 
                 let caller = AccountId::from([0xAA; 32]);
 
-                let result = marketplace._ordenar_compra(caller, 0_u32);
+                let result = marketplace._ordenar_compra(caller, 0_u32, 5_u32);
 
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
@@ -1093,7 +1093,7 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller.clone(), username, rol);
 
-                let result = marketplace._ordenar_compra(caller, 0 as u32);
+                let result = marketplace._ordenar_compra(caller, 0_u32, 5_u32);
 
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoEsComprador));
             }
@@ -1123,7 +1123,7 @@ mod marketplace {
                     stock,
                 );
 
-                let result = marketplace._ordenar_compra(caller, 1 as u32);
+                let result = marketplace._ordenar_compra(caller, 1_u32, 5_u32);
 
                 assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
             }
@@ -1153,7 +1153,7 @@ mod marketplace {
                     stock,
                 );
 
-                let result = marketplace._ordenar_compra(caller, 0_u32);
+                let result = marketplace._ordenar_compra(caller, 0_u32, 5_u32);
 
                 assert_eq!(result, Err(ErrorSistema::PublicacionSinStock));
             }
@@ -1187,7 +1187,7 @@ mod marketplace {
                     stock,
                 );
 
-                let _ = marketplace._ordenar_compra(caller, 0_u32);
+                let _ = marketplace._ordenar_compra(caller, 0_u32, 5_u32);
 
                 nombre = "Pantalon".to_string();
                 descripcion = "Jean".to_string();
@@ -1204,7 +1204,7 @@ mod marketplace {
                     stock,
                 );
 
-                let _ = marketplace._ordenar_compra(caller, 1_u32);
+                let _ = marketplace._ordenar_compra(caller, 1_u32, 2_u32);
 
                 assert!(marketplace._get_ordenes_comprador(caller).is_ok());
 
@@ -1273,7 +1273,7 @@ mod marketplace {
                     stock,
                 );
 
-                let _ = marketplace._ordenar_compra(caller2, 0_u32);
+                let _ = marketplace._ordenar_compra(caller2, 0_u32, 5_u32);
 
                 nombre = "Pantalon".to_string();
                 descripcion = "Jean".to_string();
@@ -1290,7 +1290,7 @@ mod marketplace {
                     stock,
                 );
 
-                let _ = marketplace._ordenar_compra(caller2, 1_u32);
+                let _ = marketplace._ordenar_compra(caller2, 1_u32, 2_u32);
 
                 assert!(marketplace._get_ordenes(caller1).is_ok());
 
