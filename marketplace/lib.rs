@@ -55,6 +55,24 @@ mod marketplace {
 
         /// Error por desbordamiento negativo al manipular órdenes.
         UnderflowOrdenes,
+
+        /// El usuario que intenta realizar la acción no es el vendedor asociado a la orden.
+        NoEresVendedorDeLaOrden,
+
+        /// El usuario que intenta realizar la acción no es el comprador asociado a la orden.
+        NoEresCompradorDeLaOrden,
+
+        /// La orden ya ha sido marcada como enviada previamente.
+        YaEnviada,
+
+        /// La orden ya ha sido marcada como recibida previamente.
+        YaRecibido,
+
+        /// La orden ha sido cancelada y no puede ser modificada.
+        OrdenCancelada,
+
+        /// La orden aún está pendiente y no puede ser marcada como recibida.
+        OrdenPendiente,
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
@@ -549,6 +567,69 @@ mod marketplace {
         fn _get_ordenes(&self, caller: AccountId) -> Result<Vec<OrdenCompra>, ErrorSistema> {
             self._get_usuario(caller)?;
             Ok(self.ordenes_compra.clone())
+        }
+
+        //Marca una orden como enviada
+        fn marcar_enviado(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
+            self._marcar_enviado(self.env().caller(), idx_orden)
+        }
+
+        fn _marcar_enviado(&mut self, caller: AccountId, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
+            // valida la existencia y rol del usuario
+            let usuario = self._get_usuario(caller)?;
+            usuario.es_vendedor()?;
+
+            //Buscar orden
+            let orden = self
+                .ordenes_compra
+                .get_mut(idx_orden as usize)
+                .ok_or(ErrorSistema::PublicacionNoExistente)?;
+
+            match orden.estado {
+                Estado::Pendiente => {
+                    //Verifica que el vendedor sea el de la orden
+                    if orden.publicacion.vendedor_id != usuario.account_id {
+                        return Err(ErrorSistema::NoEresVendedorDeLaOrden);
+                    }
+                    //Marca la orden como enviada
+                    orden.estado = Estado::Enviada;
+                    Ok(orden.clone())
+                }
+                Estado::Enviada => Err(ErrorSistema::YaEnviada),
+                Estado::Recibida => Err(ErrorSistema::YaRecibido),
+                Estado::Cancelada => Err(ErrorSistema::OrdenCancelada),
+            }
+        }
+
+        fn marcar_recibido(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
+            self._marcar_recibido(self.env().caller(), idx_orden)
+        }
+
+        fn _marcar_recibido(&mut self, caller: AccountId, idx_orden: u32,) -> Result<OrdenCompra, ErrorSistema> {
+            // valida la existencia y rol del usuario
+            let usuario = self._get_usuario(caller)?;
+            usuario.es_comprador()?;
+
+            //Buscar orden
+            let orden = self
+                .ordenes_compra
+                .get_mut(idx_orden as usize)
+                .ok_or(ErrorSistema::PublicacionNoExistente)?;
+
+            match orden.estado {
+                Estado::Enviada => {
+                    //Verifica que el comprador sea el de la orden
+                    if orden.comprador_id != usuario.account_id {
+                        return Err(ErrorSistema::NoEresCompradorDeLaOrden);
+                    }
+                    //Marca la orden como recibida
+                    orden.estado = Estado::Recibida;
+                    Ok(orden.clone())
+                }
+                Estado::Pendiente => Err(ErrorSistema::OrdenPendiente),
+                Estado::Recibida => Err(ErrorSistema::YaRecibido),
+                Estado::Cancelada => Err(ErrorSistema::OrdenCancelada),
+            }
         }
     }
 
@@ -1156,6 +1237,375 @@ mod marketplace {
                 let result = marketplace._ordenar_compra(caller, 0_u32, 5_u32);
 
                 assert_eq!(result, Err(ErrorSistema::PublicacionSinStock));
+            }
+        }
+
+        mod tests_marcar_enviado {
+            use super::*;
+
+            #[ink::test]
+            fn tests_marcar_enviado_correcto() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 5_u32);
+
+                let result = marketplace._marcar_enviado(vendedor, 0_u32);
+                assert!(result.is_ok());
+                assert_eq!(marketplace.ordenes_compra[0].estado, Estado::Enviada);
+            }
+
+            #[ink::test]
+            fn tests_marcar_enviado_usuario_no_encontrado() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+
+                let result = marketplace._marcar_enviado(vendedor, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
+            }
+
+            #[ink::test]
+            fn tests_marcar_enviado_usuario_no_vendedor() {
+                let mut marketplace = Marketplace::new();
+
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let result = marketplace._marcar_enviado(comprador, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::UsuarioNoEsVendedor));
+            }
+
+            #[ink::test]
+            fn tests_marcar_enviado_orden_no_existe() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+
+                let result = marketplace._marcar_enviado(vendedor, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
+            }
+
+            #[ink::test]
+            fn tests_marcar_enviado_vendedor_no_es_dueno() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor1 = AccountId::from([0xAA; 32]);
+                let vendedor2 = AccountId::from([0xCC; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor1, "vendedor1".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(vendedor2, "vendedor2".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor1,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 5_u32);
+
+                let result = marketplace._marcar_enviado(vendedor2, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::NoEresVendedorDeLaOrden));
+            }
+
+            #[ink::test]
+            fn tests_marcar_enviado_orden_ya_enviada() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 5_u32);
+
+                let _ = marketplace._marcar_enviado(vendedor, 0_u32);
+
+                let result = marketplace._marcar_enviado(vendedor, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::YaEnviada));
+            }
+
+            #[ink::test]
+            fn tests_marcar_enviado_vendedor_con_rol_ambos() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Ambos);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 5_u32);
+
+                let result = marketplace._marcar_enviado(vendedor, 0_u32);
+
+                assert!(result.is_ok());
+                assert_eq!(marketplace.ordenes_compra[0].estado, Estado::Enviada);
+            }
+
+            #[ink::test]
+            fn tests_marcar_enviado_multiples_ordenes() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Pantalon".to_string(),
+                    "jean".to_string(),
+                    20000,
+                    Categoria::Ropa,
+                    10,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 5_u32);
+                let _ = marketplace._ordenar_compra(comprador, 1_u32, 3_u32);
+
+                let result1 = marketplace._marcar_enviado(vendedor, 0_u32);
+                let result2 = marketplace._marcar_enviado(vendedor, 1_u32);
+
+                assert!(result1.is_ok());
+                assert!(result2.is_ok());
+                assert_eq!(marketplace.ordenes_compra[0].estado, Estado::Enviada);
+                assert_eq!(marketplace.ordenes_compra[1].estado, Estado::Enviada);
+            }
+        }
+
+        mod tests_marcar_recibido {
+            use super::*;
+
+            #[ink::test]
+            fn tests_marcar_recibido_correcto() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 5_u32);
+                // vendedor marca enviado
+                let _ = marketplace._marcar_enviado(vendedor, 0_u32);
+
+                let result = marketplace._marcar_recibido(comprador, 0_u32);
+                assert!(result.is_ok());
+                assert_eq!(marketplace.ordenes_compra[0].estado, Estado::Recibida);
+            }
+
+            #[ink::test]
+            fn tests_marcar_recibido_usuario_no_encontrado() {
+                let mut marketplace = Marketplace::new();
+
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let result = marketplace._marcar_recibido(comprador, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
+            }
+
+            #[ink::test]
+            fn tests_marcar_recibido_usuario_no_comprador() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+
+                let result = marketplace._marcar_recibido(vendedor, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::UsuarioNoEsComprador));
+            }
+
+            #[ink::test]
+            fn tests_marcar_recibido_orden_no_existe() {
+                let mut marketplace = Marketplace::new();
+
+                let comprador = AccountId::from([0xBB; 32]);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let result = marketplace._marcar_recibido(comprador, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
+            }
+
+            #[ink::test]
+            fn tests_marcar_recibido_no_es_dueno() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador1 = AccountId::from([0xBB; 32]);
+                let comprador2 = AccountId::from([0xCC; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador1, "comprador1".to_string(), Rol::Comprador);
+                let _ = marketplace._registrar_usuario(comprador2, "comprador2".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador1, 0_u32, 2_u32);
+                let _ = marketplace._marcar_enviado(vendedor, 0_u32);
+
+                let result = marketplace._marcar_recibido(comprador2, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::NoEresCompradorDeLaOrden));
+            }
+
+            #[ink::test]
+            fn tests_marcar_recibido_orden_pendiente() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 1_u32);
+                // vendedor no marca enviado
+                let result = marketplace._marcar_recibido(comprador, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::OrdenPendiente));
+            }
+
+            #[ink::test]
+            fn tests_marcar_recibido_ya_recibida() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 1_u32);
+                let _ = marketplace._marcar_enviado(vendedor, 0_u32);
+                let _ = marketplace._marcar_recibido(comprador, 0_u32);
+
+                let result = marketplace._marcar_recibido(comprador, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::YaRecibido));
+            }
+
+            #[ink::test]
+            fn tests_marcar_recibido_orden_cancelada() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0_u32, 1_u32);
+                // Simular que la orden fue cancelada
+                marketplace.ordenes_compra[0].estado = Estado::Cancelada;
+
+                let result = marketplace._marcar_recibido(comprador, 0_u32);
+
+                assert_eq!(result, Err(ErrorSistema::OrdenCancelada));
             }
         }
 
