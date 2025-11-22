@@ -15,8 +15,9 @@ mod marketplace {
         publicaciones: Vec<Publicacion>,
         ordenes_compra: Vec<OrdenCompra>,
 
-        /// storage mapping de publicaciones y ordenes de compra por usuario
+        /// storage mapping de publicaciones por vendedor
         publicaciones_mapping: Mapping<AccountId, Vec<u32>>, // (id_vendedor, id's publicaciones)
+        /// storage mapping de ordenes de compra por comprador
         ordenes_compra_mapping: Mapping<AccountId, Vec<u32>>, // (id_comprador, id's ordenes de compra)
     }
 
@@ -73,6 +74,18 @@ mod marketplace {
 
         /// La orden aún está pendiente y no puede ser marcada como recibida.
         OrdenPendiente,
+
+        /// No hay petición de cancelación activa para esta orden.
+        PeticionNoSolicitada,
+
+        /// La orden no se encuentra en estado pendiente.
+        OrdenNoPendiente,
+
+        /// El usuario no tiene permisos para realizar la acción.
+        SinPermisos,
+
+        /// Error por desbordamiento positivo al manipular publicaciones.
+        OverflowPublicaciones,
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
@@ -169,6 +182,9 @@ mod marketplace {
 
         /// Indica si se ha solicitado la cancelación de la orden.
         peticion_cancelacion: bool,
+
+        /// Cantidad de productos comprados.
+        cantidad: u32,
     }
 
 
@@ -501,6 +517,7 @@ mod marketplace {
                 publicacion: publicacion.clone(),
                 comprador_id: usuario.account_id,
                 peticion_cancelacion: false,
+                cantidad,
             };
 
             //Agrega la orden de compra al sistema
@@ -629,6 +646,59 @@ mod marketplace {
                 Estado::Pendiente => Err(ErrorSistema::OrdenPendiente),
                 Estado::Recibida => Err(ErrorSistema::YaRecibido),
                 Estado::Cancelada => Err(ErrorSistema::OrdenCancelada),
+            }
+
+        }
+
+        /// Cancela una orden de compra.
+        ///
+        /// Requiere que el comprador solicite la cancelación y luego el vendedor la apruebe.
+        #[ink(message)]
+        pub fn cancelar_orden(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
+            self._cancelar_orden(self.env().caller(), idx_orden)
+        }
+
+        fn _cancelar_orden(&mut self, caller: AccountId, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
+            // Validar usuario
+            self._get_usuario(caller)?;
+
+            // Buscar orden
+            let orden = self
+                .ordenes_compra
+                .get_mut(idx_orden as usize)
+                .ok_or(ErrorSistema::PublicacionNoExistente)?;
+
+            // Verificar estado
+            if orden.estado != Estado::Pendiente {
+                return Err(ErrorSistema::OrdenNoPendiente);
+            }
+
+            // Lógica según rol
+            if caller == orden.comprador_id {
+                // Comprador solicita cancelación
+                orden.peticion_cancelacion = true;
+                Ok(orden.clone())
+            } else if caller == orden.publicacion.vendedor_id {
+                // Vendedor aprueba cancelación
+                if !orden.peticion_cancelacion {
+                    return Err(ErrorSistema::PeticionNoSolicitada);
+                }
+
+                // Restaurar stock
+                let mut publicacion = self
+                    .publicaciones
+                    .get_mut(orden.publicacion.id_publicacion as usize)
+                    .ok_or(ErrorSistema::PublicacionNoExistente)?;
+                
+                publicacion.stock = publicacion.stock.checked_add(orden.cantidad as u64).ok_or(ErrorSistema::OverflowPublicaciones)?;
+                
+                // Actualizar estado orden
+                orden.estado = Estado::Cancelada;
+                
+                Ok(orden.clone())
+            } else {
+                // Ni comprador ni vendedor
+                Err(ErrorSistema::SinPermisos)
             }
         }
     }
@@ -1778,76 +1848,169 @@ mod marketplace {
                 }
             }
         }
-    }
 
-    /// This is how you'd write end-to-end (E2E) or integration tests for ink! contracts.
-    ///
-    /// When running these you need to make sure that you:
-    /// - Compile the tests with the `e2e-tests` feature flag enabled (`--features e2e-tests`)
-    /// - Are running a Substrate node which contains `pallet-contracts` in the background
-    #[cfg(all(test, feature = "e2e-tests"))]
-    mod e2e_tests {
-        /// Imports all the definitions from the outer scope so we can use them here.
-        use super::*;
+        mod tests_cancelar_orden {
+            use super::*;
 
-        /// A helper function used for calling contract messages.
-        use ink_e2e::ContractsBackend;
+            #[ink::test]
+            fn tests_cancelar_orden_solicitud_comprador() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
 
-        /// The End-to-End test `Result` type.
-        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+                // Setup usuario Vendedor
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                // Crea una publicacion
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
 
-        /// We test that we can upload and instantiate the contract using its default constructor.
-        #[ink_e2e::test]
-        async fn default_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
-            // Given
-            let mut constructor = MarketplaceRef::default();
+                // Setup usuario Comprador
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                
+                // Ordenar compra
+                let _ = marketplace._ordenar_compra(comprador, 0, 2);
 
-            // When
-            let contract = client
-                .instantiate("marketplace", &ink_e2e::alice(), &mut constructor)
-                .submit()
-                .await
-                .expect("instantiate failed");
-            let call_builder = contract.call_builder::<Marketplace>();
+                // Solicitar cancelacion 
+                let result = marketplace._cancelar_orden(comprador, 0);
+                assert!(result.is_ok());
+                
+                if let Ok(orden) = result {
+                    assert_eq!(orden.peticion_cancelacion, true);
+                    assert_eq!(orden.estado, Estado::Pendiente);
+                }
+            }
 
-            // Then
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), false));
+            #[ink::test]
+            fn tests_cancelar_orden_aprobacion_vendedor() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
 
-            Ok(())
-        }
+                // Setup usuario Vendedor
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                // Crea una publicacion
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
 
-        /// We test that we can read and write a value from the on-chain contract.
-        #[ink_e2e::test]
-        async fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
-            // Given
-            let mut constructor = MarketplaceRef::new(false);
-            let contract = client
-                .instantiate("marketplace", &ink_e2e::bob(), &mut constructor)
-                .submit()
-                .await
-                .expect("instantiate failed");
-            let mut call_builder = contract.call_builder::<Marketplace>();
+                // Setup usuario Comprador
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                
+                // Ordenar compra 
+                let _ = marketplace._ordenar_compra(comprador, 0, 2);
 
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::bob(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), false));
+                // Solicitar cancelacion 
+                let _ = marketplace._cancelar_orden(comprador, 0);
 
-            // When
-            let flip = call_builder.flip();
-            let _flip_result = client
-                .call(&ink_e2e::bob(), &flip)
-                .submit()
-                .await
-                .expect("flip failed");
+                // Aprobar cancelacion (caller Vendedor)
+                let result = marketplace._cancelar_orden(vendedor, 0);
+                assert!(result.is_ok());
 
-            // Then
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::bob(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), true));
+                if let Ok(orden) = result {
+                    assert_eq!(orden.estado, Estado::Cancelada);
+                }
 
-            Ok(())
+                // Verificar que el stock se restablezca
+                let result_pub = marketplace._get_publicaciones_vendedor(vendedor);
+                assert!(result_pub.is_ok());
+                
+                if let Ok(publicaciones) = result_pub {
+                    assert_eq!(publicaciones[0].stock, 10); // 10 - 2 + 2 = 10
+                }
+            }
+
+            #[ink::test]
+            fn tests_cancelar_orden_vendedor_no_solicitud() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                // Setup usuario Vendedor
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
+
+                // Setup usuario Comprador
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                
+                // Ordenar compra
+                let _ = marketplace._ordenar_compra(comprador, 0, 2);
+
+                // Intentar aprobar cancelacion sin solicitud del comprador
+                let result = marketplace._cancelar_orden(vendedor, 0);
+                assert_eq!(result, Err(ErrorSistema::PeticionNoSolicitada));
+            }
+
+            #[ink::test]
+            fn tests_cancelar_orden_orden_no_existente() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                
+                // Setup usuario Vendedor
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                
+                // Intentar cancelar orden inexistente
+                let result = marketplace._cancelar_orden(vendedor, 999);
+                assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
+            }
+
+            #[ink::test]
+            fn tests_cancelar_orden_estado_no_pendiente() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                // Setup usuario Vendedor
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
+
+                // Setup usuario Comprador
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                
+                // Ordenar compra
+                let _ = marketplace._ordenar_compra(comprador, 0, 2);
+
+                // Solicitar cancelacion
+                let _ = marketplace._cancelar_orden(comprador, 0);
+
+                // Aprobar cancelacion
+                let _ = marketplace._cancelar_orden(vendedor, 0);
+
+                // Intentar cancelar de nuevo (ya está cancelada)
+                let result = marketplace._cancelar_orden(comprador, 0);
+                assert_eq!(result, Err(ErrorSistema::OrdenNoPendiente));
+            }
+
+            #[ink::test]
+            fn tests_cancelar_orden_sin_permisos() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+                let otro_usuario = AccountId::from([0xCC; 32]);
+
+                // Setup usuario Vendedor
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
+
+                // Setup usuario Comprador
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                
+                // Ordenar compra
+                let _ = marketplace._ordenar_compra(comprador, 0, 2);
+
+                // Setup otro usuario
+                let _ = marketplace._registrar_usuario(otro_usuario, "otro".to_string(), Rol::Comprador);
+
+                // Intentar cancelar orden ajena
+                let result = marketplace._cancelar_orden(otro_usuario, 0);
+                assert_eq!(result, Err(ErrorSistema::SinPermisos));
+            }
+
+            #[ink::test]
+            fn tests_cancelar_orden_usuario_no_registrado() {
+                let mut marketplace = Marketplace::new();
+                let no_registrado = AccountId::from([0xDD; 32]);
+
+                // Intentar cancelar sin estar registrado
+                let result = marketplace._cancelar_orden(no_registrado, 0);
+                assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
+            }
         }
     }
 }
