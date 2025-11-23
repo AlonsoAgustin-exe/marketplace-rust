@@ -427,14 +427,29 @@ mod marketplace {
             Ok(publicacion)
         }
 
-        //Retorna las publicaciones del vendedor solicitante
+        /// Retorna las publicaciones del vendedor solicitante.
+        ///
+        /// Delegará la obtención al método interno `_get_publicaciones_vendedor`.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<Publicacion>)` con la lista de publicaciones del vendedor.
+        /// - `Err(ErrorSistema)` si el usuario no es vendedor o no está registrado.
         #[ink(message)]
         #[ignore]
         pub fn get_publicaciones_vendedor(&self) -> Result<Vec<Publicacion>, ErrorSistema> {
             self._get_publicaciones_vendedor(self.env().caller())
         }
 
-        //Funcion prueba get_publicaciones_vendedor()
+        /// Método interno que obtiene las publicaciones de un vendedor específico.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del vendedor.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<Publicacion>)` con la lista de publicaciones.
+        /// - `Err(ErrorSistema)` si el usuario no es vendedor o no está registrado.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _get_publicaciones_vendedor(
             &self,
             caller: AccountId,
@@ -460,20 +475,45 @@ mod marketplace {
             Ok(publicaciones_vendedor)
         }
 
-        //Retorna las publicaciones de todos los vendedores
+        /// Retorna todas las publicaciones existentes en el sistema.
+        ///
+        /// Delegará la obtención al método interno `_get_publicaciones`.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<Publicacion>)` con la lista completa de publicaciones.
+        /// - `Err(ErrorSistema)` si el usuario solicitante no está registrado.
         #[ink(message)]
         #[ignore]
         pub fn get_publicaciones(&self) -> Result<Vec<Publicacion>, ErrorSistema> {
             self._get_publicaciones(self.env().caller())
         }
 
-        //Funcion prueba get_publicaciones()
+        /// Método interno que obtiene todas las publicaciones.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta que realiza la consulta.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<Publicacion>)` con la lista completa de publicaciones.
+        /// - `Err(ErrorSistema)` si el usuario no está registrado.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _get_publicaciones(&self, caller: AccountId) -> Result<Vec<Publicacion>, ErrorSistema> {
             self._get_usuario(caller)?;
             Ok(self.publicaciones.clone())
         }
 
-        //Crea una orden de compra
+        /// Crea una nueva orden de compra para una publicación específica.
+        ///
+        /// Delegará la creación al método interno `_ordenar_compra`.
+        ///
+        /// # Parámetros
+        /// - `idx_publicacion`: Índice de la publicación a comprar.
+        /// - `cantidad`: Cantidad de unidades a comprar.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con los detalles de la orden creada.
+        /// - `Err(ErrorSistema)` si ocurre algún error (ej. sin stock, usuario no comprador).
         #[ink(message)]
         #[ignore]
         pub fn ordenar_compra(
@@ -484,7 +524,18 @@ mod marketplace {
             self._ordenar_compra(self.env().caller(), idx_publicacion, cantidad)
         }
 
-        //Funcion prueba ordenar_compra()
+        /// Método interno que realiza la lógica de creación de una orden de compra.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del comprador.
+        /// - `idx_publicacion`: Índice de la publicación.
+        /// - `cantidad`: Cantidad de unidades a comprar.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con los detalles de la orden.
+        /// - `Err(ErrorSistema)` si el usuario no es comprador, la publicación no existe o no hay stock.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _ordenar_compra(
             &mut self,
             caller: AccountId,
@@ -540,14 +591,29 @@ mod marketplace {
             Ok(orden_compra)
         }
 
-        //Retorna las ordenes de compra del comprador solicitante
+        /// Retorna las órdenes de compra del comprador solicitante.
+        ///
+        /// Delegará la obtención al método interno `_get_ordenes_comprador`.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<OrdenCompra>)` con la lista de órdenes del comprador.
+        /// - `Err(ErrorSistema)` si el usuario no es comprador o no está registrado.
         #[ink(message)]
         #[ignore]
         pub fn get_ordenes_comprador(&self) -> Result<Vec<OrdenCompra>, ErrorSistema> {
             self._get_ordenes_comprador(self.env().caller())
         }
 
-        //Funcion prueba get_ordenes_comprador()
+        /// Método interno que obtiene las órdenes de compra de un comprador específico.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del comprador.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<OrdenCompra>)` con la lista de órdenes.
+        /// - `Err(ErrorSistema)` si el usuario no es comprador o no está registrado.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _get_ordenes_comprador(
             &self,
             caller: AccountId,
@@ -573,24 +639,58 @@ mod marketplace {
             Ok(ordenes_compra_comprador)
         }
 
-        //Retorna las ordenes de compra de todos los compradores
+        /// Retorna todas las órdenes de compra existentes en el sistema.
+        ///
+        /// Delegará la obtención al método interno `_get_ordenes`.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<OrdenCompra>)` con la lista completa de órdenes.
+        /// - `Err(ErrorSistema)` si el usuario solicitante no está registrado.
         #[ink(message)]
         #[ignore]
         pub fn get_ordenes(&self) -> Result<Vec<OrdenCompra>, ErrorSistema> {
             self._get_ordenes(self.env().caller())
         }
 
-        //Funcion prueba get_ordenes
+        /// Método interno que obtiene todas las órdenes de compra.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta que realiza la consulta.
+        ///
+        /// # Retorna
+        /// - `Ok(Vec<OrdenCompra>)` con la lista completa de órdenes.
+        /// - `Err(ErrorSistema)` si el usuario no está registrado.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _get_ordenes(&self, caller: AccountId) -> Result<Vec<OrdenCompra>, ErrorSistema> {
             self._get_usuario(caller)?;
             Ok(self.ordenes_compra.clone())
         }
 
-        //Marca una orden como enviada
-        fn marcar_enviado(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
+        /// Marca una orden de compra como enviada.
+        ///
+        /// Solo el vendedor asociado a la orden puede realizar esta acción.
+        ///
+        /// # Parámetros
+        /// - `idx_orden`: Índice de la orden a marcar.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con el estado actualizado a `Enviada`.
+        /// - `Err(ErrorSistema)` si ocurre algún error (ej. no es el vendedor, estado incorrecto).
+        #[ink(message)]
+        pub fn marcar_enviado(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             self._marcar_enviado(self.env().caller(), idx_orden)
         }
 
+        /// Método interno que realiza la lógica para marcar una orden como enviada.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del vendedor.
+        /// - `idx_orden`: Índice de la orden.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con el estado actualizado.
+        /// - `Err(ErrorSistema)` si el usuario no es vendedor, no es el dueño de la orden o el estado no es `Pendiente`.
         fn _marcar_enviado(&mut self, caller: AccountId, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             // valida la existencia y rol del usuario
             let usuario = self._get_usuario(caller)?;
@@ -618,10 +718,30 @@ mod marketplace {
             }
         }
 
-        fn marcar_recibido(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
+        /// Marca una orden de compra como recibida.
+        ///
+        /// Solo el comprador asociado a la orden puede realizar esta acción.
+        ///
+        /// # Parámetros
+        /// - `idx_orden`: Índice de la orden a marcar.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con el estado actualizado a `Recibida`.
+        /// - `Err(ErrorSistema)` si ocurre algún error (ej. no es el comprador, estado incorrecto).
+        #[ink(message)]
+        pub fn marcar_recibido(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             self._marcar_recibido(self.env().caller(), idx_orden)
         }
 
+        /// Método interno que realiza la lógica para marcar una orden como recibida.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta del comprador.
+        /// - `idx_orden`: Índice de la orden.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con el estado actualizado.
+        /// - `Err(ErrorSistema)` si el usuario no es comprador, no es el dueño de la orden o el estado no es `Enviada`.
         fn _marcar_recibido(&mut self, caller: AccountId, idx_orden: u32,) -> Result<OrdenCompra, ErrorSistema> {
             // valida la existencia y rol del usuario
             let usuario = self._get_usuario(caller)?;
@@ -652,12 +772,34 @@ mod marketplace {
 
         /// Cancela una orden de compra.
         ///
+        /// Este método permite iniciar el proceso de cancelación de una orden.
         /// Requiere que el comprador solicite la cancelación y luego el vendedor la apruebe.
+        ///
+        /// # Parámetros
+        /// - `idx_orden`: Índice de la orden a cancelar.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con el estado actualizado de la orden.
+        /// - `Err(ErrorSistema)` si ocurre algún error (ej. orden no encontrada, usuario no autorizado).
         #[ink(message)]
         pub fn cancelar_orden(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             self._cancelar_orden(self.env().caller(), idx_orden)
         }
 
+        /// Método interno que maneja la lógica de cancelación de órdenes.
+        ///
+        /// # Parámetros
+        /// - `caller`: Identificador de la cuenta que solicita la acción.
+        /// - `idx_orden`: Índice de la orden a cancelar.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con el estado actualizado.
+        /// - `Err(ErrorSistema)` en caso de error.
+        ///
+        /// # Lógica
+        /// - Si el `caller` es el comprador: Se marca `peticion_cancelacion` como `true`.
+        /// - Si el `caller` es el vendedor: Se verifica que exista una petición, se restaura el stock y se cambia el estado a `Cancelada`.
+        /// - Si el `caller` no es ninguno de los dos: Retorna `ErrorSistema::SinPermisos`.
         fn _cancelar_orden(&mut self, caller: AccountId, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             // Validar usuario
             self._get_usuario(caller)?;
@@ -704,6 +846,19 @@ mod marketplace {
     }
 
     impl Publicacion {
+        /// Crea una nueva instancia de `Publicacion`.
+        ///
+        /// # Parámetros
+        /// - `id_publicacion`: Identificador único de la publicación.
+        /// - `nombre`: Nombre del producto.
+        /// - `descripcion`: Descripción del producto.
+        /// - `precio`: Precio del producto.
+        /// - `categoria`: Categoría del producto.
+        /// - `stock`: Cantidad disponible.
+        /// - `vendedor_id`: Identificador del vendedor.
+        ///
+        /// # Retorna
+        /// - Una nueva instancia de `Publicacion`.
         pub fn new(
             id_publicacion: u64,
             nombre: String,
@@ -726,7 +881,11 @@ mod marketplace {
     }
 
     impl Usuario {
-        //Valida que el usuario tenga rol Vendedor o Ambos
+        /// Valida que el usuario tenga rol `Vendedor` o `Ambos`.
+        ///
+        /// # Retorna
+        /// - `Ok(true)` si el usuario tiene permisos de vendedor.
+        /// - `Err(ErrorSistema::UsuarioNoEsVendedor)` si el usuario es solo comprador.
         fn es_vendedor(&self) -> Result<bool, ErrorSistema> {
             if matches!(self.rol, Rol::Comprador) {
                 Err(ErrorSistema::UsuarioNoEsVendedor)
@@ -735,7 +894,11 @@ mod marketplace {
             }
         }
 
-        //Valida que el usuario tenga rol Comprador o Ambos
+        /// Valida que el usuario tenga rol `Comprador` o `Ambos`.
+        ///
+        /// # Retorna
+        /// - `Ok(true)` si el usuario tiene permisos de comprador.
+        /// - `Err(ErrorSistema::UsuarioNoEsComprador)` si el usuario es solo vendedor.
         fn es_comprador(&self) -> Result<bool, ErrorSistema> {
             if matches!(self.rol, Rol::Vendedor) {
                 Err(ErrorSistema::UsuarioNoEsComprador)
@@ -752,6 +915,7 @@ mod marketplace {
         mod tests_es_vendedor {
             use super::*;
 
+            /// Verifica que un usuario con rol `Vendedor` sea identificado correctamente como vendedor.
             #[test]
             fn tests_es_vendedor_true_vendedor() {
                 let usuario = Usuario {
@@ -763,6 +927,7 @@ mod marketplace {
                 assert_eq!(usuario.es_vendedor().is_ok(), true);
             }
 
+            /// Verifica que un usuario con rol `Ambos` sea identificado correctamente como vendedor.
             #[test]
             fn tests_es_vendedor_true_ambos() {
                 let usuario = Usuario {
@@ -774,6 +939,7 @@ mod marketplace {
                 assert_eq!(usuario.es_vendedor().is_ok(), true);
             }
 
+            /// Verifica que un usuario con rol `Comprador` NO sea identificado como vendedor.
             #[test]
             fn tests_es_vendedor_false() {
                 let usuario = Usuario {
@@ -789,6 +955,7 @@ mod marketplace {
         mod tests_es_comprador {
             use super::*;
 
+            /// Verifica que un usuario con rol `Comprador` sea identificado correctamente como comprador.
             #[test]
             fn tests_es_comprador_true_comprador() {
                 let usuario = Usuario {
@@ -800,6 +967,7 @@ mod marketplace {
                 assert_eq!(usuario.es_comprador().is_ok(), true);
             }
 
+            /// Verifica que un usuario con rol `Ambos` sea identificado correctamente como comprador.
             #[test]
             fn tests_es_comprador_true_ambos() {
                 let usuario = Usuario {
@@ -811,6 +979,7 @@ mod marketplace {
                 assert_eq!(usuario.es_comprador().is_ok(), true);
             }
 
+            /// Verifica que un usuario con rol `Vendedor` NO sea identificado como comprador.
             #[test]
             fn tests_es_comprador_false() {
                 let usuario = Usuario {
@@ -826,6 +995,7 @@ mod marketplace {
         mod tests_registrar_usuario {
             use super::*;
 
+            /// Verifica que un usuario nuevo pueda registrarse correctamente.
             #[ink::test]
             fn tests_registrar_usuario_no_registrado() {
                 let mut marketplace = Marketplace::new();
@@ -837,6 +1007,7 @@ mod marketplace {
                 assert_eq!(marketplace._registrar_usuario(caller, username, rol).is_ok(),true);
             }
 
+            /// Verifica que no se pueda registrar un usuario que ya existe.
             #[ink::test]
             fn tests_registrar_usuario_ya_registrado_error() {
                 let mut marketplace = Marketplace::new();
@@ -861,6 +1032,7 @@ mod marketplace {
         mod tests_get_usuario {
             use super::*;
 
+            /// Verifica que se pueda obtener la información de un usuario registrado.
             #[ink::test]
             fn tests_get_usuario_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -874,6 +1046,7 @@ mod marketplace {
                 assert_eq!(marketplace._get_usuario(caller).is_ok(), true);
             }
 
+            /// Verifica que se retorne un error al intentar obtener un usuario no registrado.
             #[ink::test]
             fn tests_get_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -889,6 +1062,7 @@ mod marketplace {
         mod tests_cambiar_rol {
             use super::*;
 
+            /// Verifica que un usuario pueda cambiar su rol de `Comprador` a `Vendedor`.
             #[ink::test]
             fn tests_cambiar_rol_comprador_a_vendedor() {
                 let mut marketplace = Marketplace::new();
@@ -903,6 +1077,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que un usuario pueda cambiar su rol de `Vendedor` a `Comprador`.
             #[ink::test]
             fn tests_cambiar_rol_vendedor_a_comprador() {
                 let mut marketplace = Marketplace::new();
@@ -917,6 +1092,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que un usuario pueda cambiar su rol a `Ambos`.
             #[ink::test]
             fn tests_cambiar_rol_a_ambos() {
                 let mut marketplace = Marketplace::new();
@@ -931,6 +1107,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que no se pueda cambiar el rol de un usuario no registrado.
             #[ink::test]
             fn tests_cambiar_rol_usuario_no_registrado() {
                 let mut marketplace = Marketplace::new();
@@ -944,6 +1121,7 @@ mod marketplace {
         mod tests_publicar {
             use super::*;
 
+            /// Verifica que un vendedor pueda publicar un producto correctamente.
             #[ink::test]
             fn tests_publicar_correcto() {
                 let mut marketplace = Marketplace::new();
@@ -975,6 +1153,7 @@ mod marketplace {
                 );
             }
 
+            /// Verifica que un usuario no registrado no pueda publicar.
             #[ink::test]
             fn tests_publicar_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -999,6 +1178,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
 
+            /// Verifica que un usuario sin rol de vendedor no pueda publicar.
             #[ink::test]
             fn tests_publicar_usuario_no_vendedor() {
                 let mut marketplace = Marketplace::new();
@@ -1031,6 +1211,7 @@ mod marketplace {
         mod tests_get_publicaciones_vendedor {
             use super::*;
 
+            /// Verifica que un vendedor pueda obtener sus propias publicaciones.
             #[ink::test]
             fn tests_get_publicaciones_vendedor_correcto() {
                 let mut marketplace = Marketplace::new();
@@ -1081,6 +1262,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que no se puedan obtener publicaciones de un vendedor no registrado.
             #[ink::test]
             fn tests_get_publicaciones_vendedor_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -1092,6 +1274,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
 
+            /// Verifica que un usuario sin rol de vendedor no pueda listar sus publicaciones.
             #[ink::test]
             fn tests_get_publicaciones_vendedor_usuario_no_vendedor() {
                 let mut marketplace = Marketplace::new();
@@ -1111,6 +1294,7 @@ mod marketplace {
         mod tests_get_publicaciones {
             use super::*;
 
+            /// Verifica que se puedan obtener todas las publicaciones del sistema.
             #[ink::test]
             fn tests_get_publicaciones_correcto() {
                 let mut marketplace = Marketplace::new();
@@ -1178,6 +1362,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que un usuario no registrado no pueda obtener las publicaciones.
             #[ink::test]
             fn tests_get_publicaciones_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -1193,6 +1378,7 @@ mod marketplace {
         mod tests_ordenar_compra {
             use super::*;
 
+            /// Verifica que un comprador pueda realizar una orden de compra correctamente.
             #[ink::test]
             fn tests_ordenar_compra_correcto_5_unidades() {
                 let mut marketplace = Marketplace::new();
@@ -1223,6 +1409,7 @@ mod marketplace {
                 assert!(marketplace.publicaciones[0].stock == 15);
             }
 
+            /// Verifica que un usuario no registrado no pueda ordenar una compra.
             #[ink::test]
             fn tests_ordenar_compra_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -1234,6 +1421,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
 
+            /// Verifica que un usuario sin rol de comprador no pueda ordenar una compra.
             #[ink::test]
             fn tests_ordenar_compra_usuario_no_comprador() {
                 let mut marketplace = Marketplace::new();
@@ -1249,6 +1437,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoEsComprador));
             }
 
+            /// Verifica que no se pueda ordenar una compra de una publicación inexistente.
             #[ink::test]
             fn tests_ordenar_compra_publicacion_no_existente() {
                 let mut marketplace = Marketplace::new();
@@ -1279,6 +1468,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
             }
 
+            /// Verifica que no se pueda ordenar una compra si no hay stock suficiente.
             #[ink::test]
             fn tests_ordenar_compra_publicacion_sin_stock() {
                 let mut marketplace = Marketplace::new();
@@ -1313,6 +1503,7 @@ mod marketplace {
         mod tests_marcar_enviado {
             use super::*;
 
+            /// Verifica que un vendedor pueda marcar una orden como enviada.
             #[ink::test]
             fn tests_marcar_enviado_correcto() {
                 let mut marketplace = Marketplace::new();
@@ -1339,6 +1530,7 @@ mod marketplace {
                 assert_eq!(marketplace.ordenes_compra[0].estado, Estado::Enviada);
             }
 
+            /// Verifica que un usuario no registrado no pueda marcar una orden como enviada.
             #[ink::test]
             fn tests_marcar_enviado_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -1350,6 +1542,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
 
+            /// Verifica que un usuario sin rol de vendedor no pueda marcar una orden como enviada.
             #[ink::test]
             fn tests_marcar_enviado_usuario_no_vendedor() {
                 let mut marketplace = Marketplace::new();
@@ -1363,6 +1556,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoEsVendedor));
             }
 
+            /// Verifica que no se pueda marcar como enviada una orden inexistente.
             #[ink::test]
             fn tests_marcar_enviado_orden_no_existe() {
                 let mut marketplace = Marketplace::new();
@@ -1376,6 +1570,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
             }
 
+            /// Verifica que solo el vendedor dueño de la publicación pueda marcar la orden como enviada.
             #[ink::test]
             fn tests_marcar_enviado_vendedor_no_es_dueno() {
                 let mut marketplace = Marketplace::new();
@@ -1404,6 +1599,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::NoEresVendedorDeLaOrden));
             }
 
+            /// Verifica que no se pueda marcar como enviada una orden que ya fue enviada.
             #[ink::test]
             fn tests_marcar_enviado_orden_ya_enviada() {
                 let mut marketplace = Marketplace::new();
@@ -1432,6 +1628,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::YaEnviada));
             }
 
+            /// Verifica que un vendedor con rol `Ambos` pueda marcar una orden como enviada.
             #[ink::test]
             fn tests_marcar_enviado_vendedor_con_rol_ambos() {
                 let mut marketplace = Marketplace::new();
@@ -1459,6 +1656,7 @@ mod marketplace {
                 assert_eq!(marketplace.ordenes_compra[0].estado, Estado::Enviada);
             }
 
+            /// Verifica que se puedan marcar múltiples órdenes como enviadas.
             #[ink::test]
             fn tests_marcar_enviado_multiples_ordenes() {
                 let mut marketplace = Marketplace::new();
@@ -1503,6 +1701,7 @@ mod marketplace {
         mod tests_marcar_recibido {
             use super::*;
 
+            /// Verifica que un comprador pueda marcar una orden como recibida.
             #[ink::test]
             fn tests_marcar_recibido_correcto() {
                 let mut marketplace = Marketplace::new();
@@ -1531,6 +1730,7 @@ mod marketplace {
                 assert_eq!(marketplace.ordenes_compra[0].estado, Estado::Recibida);
             }
 
+            /// Verifica que un usuario no registrado no pueda marcar una orden como recibida.
             #[ink::test]
             fn tests_marcar_recibido_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -1542,6 +1742,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
 
+            /// Verifica que un usuario sin rol de comprador no pueda marcar una orden como recibida.
             #[ink::test]
             fn tests_marcar_recibido_usuario_no_comprador() {
                 let mut marketplace = Marketplace::new();
@@ -1555,6 +1756,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoEsComprador));
             }
 
+            /// Verifica que no se pueda marcar como recibida una orden inexistente.
             #[ink::test]
             fn tests_marcar_recibido_orden_no_existe() {
                 let mut marketplace = Marketplace::new();
@@ -1567,6 +1769,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
             }
 
+            /// Verifica que solo el comprador dueño de la orden pueda marcarla como recibida.
             #[ink::test]
             fn tests_marcar_recibido_no_es_dueno() {
                 let mut marketplace = Marketplace::new();
@@ -1596,6 +1799,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::NoEresCompradorDeLaOrden));
             }
 
+            /// Verifica que no se pueda marcar como recibida una orden que aún está pendiente (no enviada).
             #[ink::test]
             fn tests_marcar_recibido_orden_pendiente() {
                 let mut marketplace = Marketplace::new();
@@ -1622,6 +1826,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::OrdenPendiente));
             }
 
+            /// Verifica que no se pueda marcar como recibida una orden que ya fue recibida.
             #[ink::test]
             fn tests_marcar_recibido_ya_recibida() {
                 let mut marketplace = Marketplace::new();
@@ -1650,6 +1855,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::YaRecibido));
             }
 
+            /// Verifica que no se pueda marcar como recibida una orden cancelada.
             #[ink::test]
             fn tests_marcar_recibido_orden_cancelada() {
                 let mut marketplace = Marketplace::new();
@@ -1682,6 +1888,7 @@ mod marketplace {
         mod tests_get_ordenes_comprador {
             use super::*;
 
+            /// Verifica que un comprador pueda obtener sus órdenes de compra.
             #[ink::test]
             fn tests_get_ordenes_comprador_correcto() {
                 let mut marketplace = Marketplace::new();
@@ -1733,6 +1940,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que un usuario no registrado no pueda obtener órdenes de compra.
             #[ink::test]
             fn tests_get_ordenes_comprador_usuario_no_encontrado() {
                 let mut marketplace = Marketplace::new();
@@ -1744,6 +1952,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
 
+            /// Verifica que un usuario sin rol de comprador no pueda obtener órdenes de compra.
             #[ink::test]
             fn tests_get_ordenes_comprador_usuario_no_comprador() {
                 let mut marketplace = Marketplace::new();
@@ -1763,6 +1972,7 @@ mod marketplace {
         mod tests_get_ordenes {
             use super::*;
 
+            /// Verifica que se puedan obtener todas las órdenes de compra del sistema.
             #[ink::test]
             fn tests_get_ordenes_correcto() {
                 let mut marketplace = Marketplace::new();
@@ -1819,6 +2029,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que un usuario no registrado no pueda obtener todas las órdenes.
             #[ink::test]
             fn tests_get_ordenes_usuario_no_encontrado() {
                 let marketplace = Marketplace::new();
@@ -1830,6 +2041,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
 
+            /// Verifica que se retorne una lista vacía si no hay órdenes en el sistema.
             #[ink::test]
             fn tests_get_ordenes_sin_ordenes() {
                 let mut marketplace = Marketplace::new();
@@ -1852,6 +2064,7 @@ mod marketplace {
         mod tests_cancelar_orden {
             use super::*;
 
+            /// Verifica que un comprador pueda solicitar la cancelación de una orden.
             #[ink::test]
             fn tests_cancelar_orden_solicitud_comprador() {
                 let mut marketplace = Marketplace::new();
@@ -1879,6 +2092,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que un vendedor pueda aprobar la cancelación solicitada por el comprador y que el stock se restaure.
             #[ink::test]
             fn tests_cancelar_orden_aprobacion_vendedor() {
                 let mut marketplace = Marketplace::new();
@@ -1916,6 +2130,7 @@ mod marketplace {
                 }
             }
 
+            /// Verifica que el vendedor no pueda cancelar una orden si el comprador no lo ha solicitado.
             #[ink::test]
             fn tests_cancelar_orden_vendedor_no_solicitud() {
                 let mut marketplace = Marketplace::new();
@@ -1937,6 +2152,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::PeticionNoSolicitada));
             }
 
+            /// Verifica que no se pueda cancelar una orden inexistente.
             #[ink::test]
             fn tests_cancelar_orden_orden_no_existente() {
                 let mut marketplace = Marketplace::new();
@@ -1950,6 +2166,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::PublicacionNoExistente));
             }
 
+            /// Verifica que no se pueda cancelar una orden que no está en estado `Pendiente`.
             #[ink::test]
             fn tests_cancelar_orden_estado_no_pendiente() {
                 let mut marketplace = Marketplace::new();
@@ -1977,6 +2194,7 @@ mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::OrdenNoPendiente));
             }
 
+            /// Verifica que un usuario sin permisos (ni comprador ni vendedor) no pueda cancelar la orden.
             #[ink::test]
             fn tests_cancelar_orden_sin_permisos() {
                 let mut marketplace = Marketplace::new();
