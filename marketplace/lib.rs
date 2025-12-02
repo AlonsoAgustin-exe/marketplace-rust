@@ -519,9 +519,8 @@ mod marketplace {
         /// - `Err(ErrorSistema)` si el usuario no está registrado.
         ///
         /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
-        fn _get_publicaciones(&self, caller: AccountId) -> Result<Vec<Publicacion>, ErrorSistema> {
-            self._get_usuario(caller)?;
-            Ok(self.publicaciones.clone())
+        fn _get_publicaciones(&self) -> Vec<Publicacion> {
+            self.publicaciones.clone()
         }
 
         /// Crea una nueva orden de compra para una publicación específica.
