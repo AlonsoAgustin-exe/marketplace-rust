@@ -122,22 +122,41 @@ mod marketplace {
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
     #[derive(Debug, Clone, PartialEq)]
-    /// Representa una publicación disponible dentro del sistema.
-    pub struct Publicacion {
-        /// Identificador único de la publicación.
-        id_publicacion: u64,
-
+    pub struct Producto {
         /// Nombre del producto o ítem publicado.
         nombre: String,
 
         /// Descripción del producto.
         descripcion: String,
 
-        /// Precio del producto en la unidad base del token.
-        precio: u64,
-
         /// Categoría a la que pertenece el producto.
         categoria: Categoria,
+    }
+
+    impl Producto {
+        /// Crea un nuevo producto.
+        pub fn new(nombre: String, descripcion: String, categoria: Categoria) -> Self {
+            Self {
+                nombre,
+                descripcion,
+                categoria,
+            }
+        }
+    }
+
+    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+    #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
+    #[derive(Debug, Clone, PartialEq)]
+    /// Representa una publicación disponible dentro del sistema.
+    pub struct Publicacion {
+        /// Identificador único de la publicación.
+        id_publicacion: u64,
+
+        /// Producto asociado a la publicación.
+        producto: Producto,
+
+        /// Precio del producto en la unidad base del token.
+        precio: u64,
 
         /// Cantidad disponible en stock.
         stock: u64,
@@ -399,10 +418,12 @@ mod marketplace {
             //Crea la publicacion
             let publicacion = Publicacion::new(
                 self.publicaciones.len() as u64,
-                nombre,
-                descripcion,
+                Producto::new(
+                    nombre,
+                    descripcion,
+                    categoria,
+                ),
                 precio,
-                categoria,
                 stock,
                 usuario.account_id,
             );
@@ -827,7 +848,7 @@ mod marketplace {
                 }
 
                 // Restaurar stock
-                let mut publicacion = self
+                let publicacion = self
                     .publicaciones
                     .get_mut(orden.publicacion.id_publicacion as usize)
                     .ok_or(ErrorSistema::PublicacionNoExistente)?;
@@ -861,19 +882,15 @@ mod marketplace {
         /// - Una nueva instancia de `Publicacion`.
         pub fn new(
             id_publicacion: u64,
-            nombre: String,
-            descripcion: String,
+            producto: Producto,
             precio: u64,
-            categoria: Categoria,
             stock: u64,
             vendedor_id: AccountId,
         ) -> Publicacion {
             Publicacion {
                 id_publicacion,
-                nombre,
-                descripcion,
+                producto,
                 precio,
-                categoria,
                 stock,
                 vendedor_id,
             }
@@ -1049,7 +1066,7 @@ mod marketplace {
             /// Verifica que se retorne un error al intentar obtener un usuario no registrado.
             #[ink::test]
             fn tests_get_usuario_no_encontrado() {
-                let mut marketplace = Marketplace::new();
+                let marketplace = Marketplace::new();
 
                 let caller = AccountId::from([0xAA; 32]);
 
@@ -1066,7 +1083,6 @@ mod marketplace {
             #[ink::test]
             fn tests_cambiar_rol_comprador_a_vendedor() {
                 let mut marketplace = Marketplace::new();
-                let caller = AccountId::from([0xAA; 32]);
 
                 let _ = marketplace.registrar_usuario("agustin".to_string(), Rol::Comprador);
                 let result = marketplace.cambiar_rol(Rol::Vendedor);
@@ -1081,7 +1097,6 @@ mod marketplace {
             #[ink::test]
             fn tests_cambiar_rol_vendedor_a_comprador() {
                 let mut marketplace = Marketplace::new();
-                let caller = AccountId::from([0xAA; 32]);
 
                 let _ = marketplace.registrar_usuario("agustin".to_string(), Rol::Vendedor);
                 let result = marketplace.cambiar_rol(Rol::Comprador);
@@ -1096,7 +1111,6 @@ mod marketplace {
             #[ink::test]
             fn tests_cambiar_rol_a_ambos() {
                 let mut marketplace = Marketplace::new();
-                let caller = AccountId::from([0xAA; 32]);
 
                 let _ = marketplace.registrar_usuario("test".to_string(), Rol::Comprador);
                 let result = marketplace.cambiar_rol(Rol::Ambos);
@@ -1111,7 +1125,6 @@ mod marketplace {
             #[ink::test]
             fn tests_cambiar_rol_usuario_no_registrado() {
                 let mut marketplace = Marketplace::new();
-                let caller = AccountId::from([0xAA; 32]);
 
                 let result = marketplace.cambiar_rol(Rol::Ambos);
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
@@ -1265,7 +1278,7 @@ mod marketplace {
             /// Verifica que no se puedan obtener publicaciones de un vendedor no registrado.
             #[ink::test]
             fn tests_get_publicaciones_vendedor_usuario_no_encontrado() {
-                let mut marketplace = Marketplace::new();
+                let marketplace = Marketplace::new();
 
                 let caller = AccountId::from([0xAA; 32]);
 
@@ -1365,7 +1378,7 @@ mod marketplace {
             /// Verifica que un usuario no registrado no pueda obtener las publicaciones.
             #[ink::test]
             fn tests_get_publicaciones_usuario_no_encontrado() {
-                let mut marketplace = Marketplace::new();
+                let marketplace = Marketplace::new();
 
                 let caller = AccountId::from([0xAA; 32]);
 
@@ -1448,11 +1461,11 @@ mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller.clone(), username, rol);
 
-                let mut nombre = "Remera".to_string();
-                let mut descripcion = "algodon".to_string();
-                let mut precio = 12000;
-                let mut categoria = Categoria::Ropa;
-                let mut stock = 20;
+                let nombre = "Remera".to_string();
+                let descripcion = "algodon".to_string();
+                let precio = 12000;
+                let categoria = Categoria::Ropa;
+                let stock = 20;
 
                 let _ = marketplace._publicar(
                     caller,
@@ -1943,7 +1956,7 @@ mod marketplace {
             /// Verifica que un usuario no registrado no pueda obtener órdenes de compra.
             #[ink::test]
             fn tests_get_ordenes_comprador_usuario_no_encontrado() {
-                let mut marketplace = Marketplace::new();
+                let marketplace = Marketplace::new();
 
                 let caller = AccountId::from([0xAA; 32]);
 
