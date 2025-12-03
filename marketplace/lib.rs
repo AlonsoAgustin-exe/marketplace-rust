@@ -86,6 +86,15 @@ mod marketplace {
 
         /// Error por desbordamiento positivo al manipular publicaciones.
         OverflowPublicaciones,
+
+        /// La calificación debe ser un valor entre 1 y 5.
+        CalificacionInvalida,
+
+        /// El usuario ya ha calificado esta orden.
+        YaCalificado,
+
+        /// La orden no se encuentra en estado Recibida, por lo que no se puede calificar.
+        OrdenNoFinalizada,
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
@@ -101,6 +110,18 @@ mod marketplace {
 
         /// Identificador único de la cuenta en la red.
         account_id: AccountId,
+
+        /// Reputación acumulada como comprador (suma de calificaciones).
+        reputacion_como_comprador: u32,
+
+        /// Cantidad de calificaciones recibidas como comprador.
+        cantidad_calificaciones_comprador: u32,
+
+        /// Reputación acumulada como vendedor (suma de calificaciones).
+        reputacion_como_vendedor: u32,
+
+        /// Cantidad de calificaciones recibidas como vendedor.
+        cantidad_calificaciones_vendedor: u32,
     }
 
 
@@ -204,6 +225,12 @@ mod marketplace {
 
         /// Cantidad de productos comprados.
         cantidad: u32,
+
+        /// Calificación dada al vendedor (1-5). None si aún no calificó.
+        calificacion_al_vendedor: Option<u8>,
+
+        /// Calificación dada al comprador (1-5). None si aún no calificó.
+        calificacion_al_comprador: Option<u8>,
     }
 
 
@@ -278,11 +305,7 @@ mod marketplace {
             };
 
             //Crea el nuevo usuario
-            let usuario = Usuario {
-                account_id: caller,
-                username,
-                rol,
-            };
+            let usuario = Usuario::new(caller, username, rol);
 
             //Almacena el nuevo usuario en el sistema
             self.usuarios.insert(caller, &usuario);
@@ -505,8 +528,8 @@ mod marketplace {
         /// - `Err(ErrorSistema)` si el usuario solicitante no está registrado.
         #[ink(message)]
         #[ignore]
-        pub fn get_publicaciones(&self) -> Result<Vec<Publicacion>, ErrorSistema> {
-            self._get_publicaciones(self.env().caller())
+        pub fn get_publicaciones(&self) -> Vec<Publicacion> {
+            self._get_publicaciones()
         }
 
         /// Método interno que obtiene todas las publicaciones.
@@ -589,6 +612,8 @@ mod marketplace {
                 comprador_id: usuario.account_id,
                 peticion_cancelacion: false,
                 cantidad,
+                calificacion_al_vendedor: None,
+                calificacion_al_comprador: None,
             };
 
             //Agrega la orden de compra al sistema
@@ -698,6 +723,7 @@ mod marketplace {
         /// - `Ok(OrdenCompra)` con el estado actualizado a `Enviada`.
         /// - `Err(ErrorSistema)` si ocurre algún error (ej. no es el vendedor, estado incorrecto).
         #[ink(message)]
+        #[ignore]
         pub fn marcar_enviado(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             self._marcar_enviado(self.env().caller(), idx_orden)
         }
@@ -749,6 +775,7 @@ mod marketplace {
         /// - `Ok(OrdenCompra)` con el estado actualizado a `Recibida`.
         /// - `Err(ErrorSistema)` si ocurre algún error (ej. no es el comprador, estado incorrecto).
         #[ink(message)]
+        #[ignore]
         pub fn marcar_recibido(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             self._marcar_recibido(self.env().caller(), idx_orden)
         }
@@ -790,6 +817,93 @@ mod marketplace {
 
         }
 
+        /// Permite a las partes calificar a la contraparte una vez finalizada la orden.
+        ///
+        /// # Parámetros
+        /// - `idx_orden`: Índice de la orden a calificar.
+        /// - `calificacion`: Valor entero del 1 al 5.
+        ///
+        /// # Retorna
+        /// - `Ok(OrdenCompra)` con la calificación actualizada.
+        /// - `Err(ErrorSistema)` si la calificación es inválida, la orden no está finalizada o ya se calificó.
+        #[ink(message)]
+        #[ignore]
+        pub fn calificar_usuario(
+            &mut self,
+            idx_orden: u32,
+            calificacion: u8,
+        ) -> Result<OrdenCompra, ErrorSistema> {
+            self._calificar_usuario(self.env().caller(), idx_orden, calificacion)
+        }
+
+        /// Método interno para procesar la calificación.
+        fn _calificar_usuario(
+            &mut self,
+            caller: AccountId,
+            idx_orden: u32,
+            calificacion: u8,
+        ) -> Result<OrdenCompra, ErrorSistema> {
+            // Validar rango de calificación
+            if calificacion < 1 || calificacion > 5 {
+                return Err(ErrorSistema::CalificacionInvalida);
+            }
+
+            // Obtener la orden
+            let mut orden = self
+                .ordenes_compra
+                .get(idx_orden as usize)
+                .cloned()
+                .ok_or(ErrorSistema::PublicacionNoExistente)?;
+
+            // Verificar que la orden esté finalizada (Recibida)
+            if orden.estado != Estado::Recibida {
+                return Err(ErrorSistema::OrdenNoFinalizada);
+            }
+
+            let es_comprador = orden.comprador_id == caller;
+            let es_vendedor = orden.publicacion.vendedor_id == caller;
+
+            if !es_comprador && !es_vendedor {
+                return Err(ErrorSistema::SinPermisos);
+            }
+
+            if es_comprador {
+                // Verificar que el comprador no haya calificado previamente
+                if orden.calificacion_al_vendedor.is_some() {
+                    return Err(ErrorSistema::YaCalificado);
+                }
+
+                // Asignar calificación al vendedor
+                orden.calificacion_al_vendedor = Some(calificacion);
+
+                // Actualizar reputación del vendedor
+                let mut vendedor = self._get_usuario(orden.publicacion.vendedor_id)?;
+                vendedor.reputacion_como_vendedor = vendedor.reputacion_como_vendedor.saturating_add(calificacion as u32);
+                vendedor.cantidad_calificaciones_vendedor = vendedor.cantidad_calificaciones_vendedor.saturating_add(1);
+                self.usuarios.insert(vendedor.account_id, &vendedor);
+
+            } else {
+                // Verificar que el vendedor no haya calificado previamente
+                if orden.calificacion_al_comprador.is_some() {
+                    return Err(ErrorSistema::YaCalificado);
+                }
+
+                // Asignar calificación al comprador
+                orden.calificacion_al_comprador = Some(calificacion);
+
+                // Actualizar reputación del comprador
+                let mut comprador = self._get_usuario(orden.comprador_id)?;
+                comprador.reputacion_como_comprador = comprador.reputacion_como_comprador.saturating_add(calificacion as u32);
+                comprador.cantidad_calificaciones_comprador = comprador.cantidad_calificaciones_comprador.saturating_add(1);
+                self.usuarios.insert(comprador.account_id, &comprador);
+            }
+
+            // Guardar la orden actualizada
+            self.ordenes_compra[idx_orden as usize] = orden.clone();
+
+            Ok(orden)
+        }
+
         /// Cancela una orden de compra.
         ///
         /// Este método permite iniciar el proceso de cancelación de una orden.
@@ -802,6 +916,7 @@ mod marketplace {
         /// - `Ok(OrdenCompra)` con el estado actualizado de la orden.
         /// - `Err(ErrorSistema)` si ocurre algún error (ej. orden no encontrada, usuario no autorizado).
         #[ink(message)]
+        #[ignore]
         pub fn cancelar_orden(&mut self, idx_orden: u32) -> Result<OrdenCompra, ErrorSistema> {
             self._cancelar_orden(self.env().caller(), idx_orden)
         }
@@ -897,6 +1012,31 @@ mod marketplace {
     }
 
     impl Usuario {
+        /// Crea una nueva instancia de `Usuario`.
+        ///
+        /// # Parámetros
+        /// - `account_id`: Identificador único de la cuenta.
+        /// - `username`: Nombre de usuario.
+        /// - `rol`: Rol del usuario (Comprador, Vendedor o Ambos).
+        ///
+        /// # Retorna
+        /// - Una nueva instancia de `Usuario`.
+        fn new(
+            account_id: AccountId,
+            username: String,
+            rol: Rol,
+        ) -> Usuario {
+            Usuario {
+                account_id,
+                username,
+                rol,
+                reputacion_como_comprador: 0,
+                reputacion_como_vendedor: 0,
+                cantidad_calificaciones_comprador: 0,
+                cantidad_calificaciones_vendedor: 0,
+            }
+        }
+
         /// Valida que el usuario tenga rol `Vendedor` o `Ambos`.
         ///
         /// # Retorna
@@ -934,11 +1074,11 @@ mod marketplace {
             /// Verifica que un usuario con rol `Vendedor` sea identificado correctamente como vendedor.
             #[test]
             fn tests_es_vendedor_true_vendedor() {
-                let usuario = Usuario {
-                    account_id: AccountId::from([0xAA; 32]),
-                    username: "agustin22".to_string(),
-                    rol: Rol::Vendedor,
-                };
+                let usuario = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "agustin22".to_string(),
+                    Rol::Vendedor,
+                );
 
                 assert_eq!(usuario.es_vendedor().is_ok(), true);
             }
@@ -946,11 +1086,11 @@ mod marketplace {
             /// Verifica que un usuario con rol `Ambos` sea identificado correctamente como vendedor.
             #[test]
             fn tests_es_vendedor_true_ambos() {
-                let usuario = Usuario {
-                    account_id: AccountId::from([0xAA; 32]),
-                    username: "agustin22".to_string(),
-                    rol: Rol::Ambos,
-                };
+                let usuario = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "agustin22".to_string(),
+                    Rol::Ambos,
+                );
 
                 assert_eq!(usuario.es_vendedor().is_ok(), true);
             }
@@ -958,11 +1098,11 @@ mod marketplace {
             /// Verifica que un usuario con rol `Comprador` NO sea identificado como vendedor.
             #[test]
             fn tests_es_vendedor_false() {
-                let usuario = Usuario {
-                    account_id: AccountId::from([0xAA; 32]),
-                    username: "agustin22".to_string(),
-                    rol: Rol::Comprador,
-                };
+                let usuario = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "agustin22".to_string(),
+                    Rol::Comprador,
+                );
 
                 assert_eq!(usuario.es_vendedor().is_ok(), false);
             }
@@ -974,11 +1114,11 @@ mod marketplace {
             /// Verifica que un usuario con rol `Comprador` sea identificado correctamente como comprador.
             #[test]
             fn tests_es_comprador_true_comprador() {
-                let usuario = Usuario {
-                    account_id: AccountId::from([0xAA; 32]),
-                    username: "agustin22".to_string(),
-                    rol: Rol::Comprador,
-                };
+                let usuario = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "agustin22".to_string(),
+                    Rol::Comprador,
+                );
 
                 assert_eq!(usuario.es_comprador().is_ok(), true);
             }
@@ -986,11 +1126,11 @@ mod marketplace {
             /// Verifica que un usuario con rol `Ambos` sea identificado correctamente como comprador.
             #[test]
             fn tests_es_comprador_true_ambos() {
-                let usuario = Usuario {
-                    account_id: AccountId::from([0xAA; 32]),
-                    username: "agustin22".to_string(),
-                    rol: Rol::Ambos,
-                };
+                let usuario = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "agustin22".to_string(),
+                    Rol::Ambos,
+                );
 
                 assert_eq!(usuario.es_comprador().is_ok(), true);
             }
@@ -998,11 +1138,11 @@ mod marketplace {
             /// Verifica que un usuario con rol `Vendedor` NO sea identificado como comprador.
             #[test]
             fn tests_es_comprador_false() {
-                let usuario = Usuario {
-                    account_id: AccountId::from([0xAA; 32]),
-                    username: "agustin22".to_string(),
-                    rol: Rol::Vendedor,
-                };
+                let usuario = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "agustin22".to_string(),
+                    Rol::Vendedor,
+                );
 
                 assert_eq!(usuario.es_comprador().is_ok(), false);
             }
@@ -1367,23 +1507,8 @@ mod marketplace {
                     stock,
                 );
 
-                assert_eq!(marketplace._get_publicaciones(caller1).is_ok(), true);
-
-                if let Ok(vec_publicaciones) = marketplace._get_publicaciones(caller1) {
-                    assert_eq!(vec_publicaciones.len(), 3);
-                }
-            }
-
-            /// Verifica que un usuario no registrado no pueda obtener las publicaciones.
-            #[ink::test]
-            fn tests_get_publicaciones_usuario_no_encontrado() {
-                let marketplace = Marketplace::new();
-
-                let caller = AccountId::from([0xAA; 32]);
-
-                let result = marketplace._get_publicaciones(caller);
-
-                assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
+                let vec_publicaciones = marketplace._get_publicaciones();
+                assert_eq!(vec_publicaciones.len(), 3);
             }
         }
 
@@ -2241,6 +2366,116 @@ mod marketplace {
                 let result = marketplace._cancelar_orden(no_registrado, 0);
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
+            }
+
+        mod tests_calificar_usuario {
+            use super::*;
+
+            /// Verifica el flujo completo de calificación: Comprador califica Vendedor, Vendedor califica Comprador.
+            #[ink::test]
+            fn tests_calificar_usuario_flujo_completo() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                // 1. Registrar usuarios
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                // 2. Publicar y comprar
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
+                let _ = marketplace._ordenar_compra(comprador, 0, 1);
+
+                // 3. Marcar enviado y recibido
+                let _ = marketplace._marcar_enviado(vendedor, 0);
+                let _ = marketplace._marcar_recibido(comprador, 0);
+
+                // 4. Comprador califica al Vendedor (5 estrellas)
+                let res_comprador = marketplace._calificar_usuario(comprador, 0, 5);
+                assert!(res_comprador.is_ok());
+
+                // Verificar reputación del vendedor
+                let usuario_vendedor = marketplace._get_usuario(vendedor).unwrap();
+                assert_eq!(usuario_vendedor.reputacion_como_vendedor, 5);
+                assert_eq!(usuario_vendedor.cantidad_calificaciones_vendedor, 1);
+
+                // 5. Vendedor califica al Comprador (4 estrellas)
+                let res_vendedor = marketplace._calificar_usuario(vendedor, 0, 4);
+                assert!(res_vendedor.is_ok());
+
+                // Verificar reputación del comprador
+                let usuario_comprador = marketplace._get_usuario(comprador).unwrap();
+                assert_eq!(usuario_comprador.reputacion_como_comprador, 4);
+                assert_eq!(usuario_comprador.cantidad_calificaciones_comprador, 1);
+
+                // Verificar estado de la orden
+                let orden = marketplace.ordenes_compra[0].clone();
+                assert_eq!(orden.calificacion_al_vendedor, Some(5));
+                assert_eq!(orden.calificacion_al_comprador, Some(4));
+            }
+
+            /// Verifica que no se pueda calificar una orden no finalizada.
+            #[ink::test]
+            fn tests_calificar_orden_no_finalizada() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
+                let _ = marketplace._ordenar_compra(comprador, 0, 1);
+
+                // Intentar calificar estando Pendiente
+                let res = marketplace._calificar_usuario(comprador, 0, 5);
+                assert_eq!(res, Err(ErrorSistema::OrdenNoFinalizada));
+            }
+
+            /// Verifica que no se pueda calificar dos veces.
+            #[ink::test]
+            fn tests_calificar_doble_calificacion() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
+                let _ = marketplace._ordenar_compra(comprador, 0, 1);
+                let _ = marketplace._marcar_enviado(vendedor, 0);
+                let _ = marketplace._marcar_recibido(comprador, 0);
+
+                // Primera calificación
+                let _ = marketplace._calificar_usuario(comprador, 0, 5);
+
+                // Segunda calificación
+                let res = marketplace._calificar_usuario(comprador, 0, 3);
+                assert_eq!(res, Err(ErrorSistema::YaCalificado));
+            }
+
+            /// Verifica que la calificación debe estar entre 1 y 5.
+            #[ink::test]
+            fn tests_calificar_rango_invalido() {
+                let mut marketplace = Marketplace::new();
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+                let _ = marketplace._publicar(vendedor, "Item".to_string(), "Desc".to_string(), 100, Categoria::Computacion, 10);
+                let _ = marketplace._ordenar_compra(comprador, 0, 1);
+                let _ = marketplace._marcar_enviado(vendedor, 0);
+                let _ = marketplace._marcar_recibido(comprador, 0);
+
+                // Calificación 0
+                let res_zero = marketplace._calificar_usuario(comprador, 0, 0);
+                assert_eq!(res_zero, Err(ErrorSistema::CalificacionInvalida));
+
+                // Calificación 6
+                let res_six = marketplace._calificar_usuario(comprador, 0, 6);
+                assert_eq!(res_six, Err(ErrorSistema::CalificacionInvalida));
+            }
         }
     }
 }
+
