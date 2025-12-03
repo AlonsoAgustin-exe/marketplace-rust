@@ -124,6 +124,59 @@ mod marketplace {
         cantidad_calificaciones_vendedor: u32,
     }
 
+    impl Usuario {
+        /// Crea una nueva instancia de `Usuario`.
+        ///
+        /// # Parámetros
+        /// - `account_id`: Identificador único de la cuenta.
+        /// - `username`: Nombre de usuario.
+        /// - `rol`: Rol del usuario (Comprador, Vendedor o Ambos).
+        ///
+        /// # Retorna
+        /// - Una nueva instancia de `Usuario`.
+        fn new(
+            account_id: AccountId,
+            username: String,
+            rol: Rol,
+        ) -> Usuario {
+            Usuario {
+                account_id,
+                username,
+                rol,
+                reputacion_como_comprador: 0,
+                reputacion_como_vendedor: 0,
+                cantidad_calificaciones_comprador: 0,
+                cantidad_calificaciones_vendedor: 0,
+            }
+        }
+
+        /// Valida que el usuario tenga rol `Vendedor` o `Ambos`.
+        ///
+        /// # Retorna
+        /// - `Ok(true)` si el usuario tiene permisos de vendedor.
+        /// - `Err(ErrorSistema::UsuarioNoEsVendedor)` si el usuario es solo comprador.
+        fn es_vendedor(&self) -> Result<bool, ErrorSistema> {
+            if matches!(self.rol, Rol::Comprador) {
+                Err(ErrorSistema::UsuarioNoEsVendedor)
+            } else {
+                Ok(true)
+            }
+        }
+
+        /// Valida que el usuario tenga rol `Comprador` o `Ambos`.
+        ///
+        /// # Retorna
+        /// - `Ok(true)` si el usuario tiene permisos de comprador.
+        /// - `Err(ErrorSistema::UsuarioNoEsComprador)` si el usuario es solo vendedor.
+        fn es_comprador(&self) -> Result<bool, ErrorSistema> {
+            if matches!(self.rol, Rol::Vendedor) {
+                Err(ErrorSistema::UsuarioNoEsComprador)
+            } else {
+                Ok(true)
+            }
+        }
+    }
+
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
@@ -184,6 +237,37 @@ mod marketplace {
 
         /// Identificador de cuenta del vendedor asociado.
         vendedor_id: AccountId,
+    }
+
+    impl Publicacion {
+        /// Crea una nueva instancia de `Publicacion`.
+        ///
+        /// # Parámetros
+        /// - `id_publicacion`: Identificador único de la publicación.
+        /// - `nombre`: Nombre del producto.
+        /// - `descripcion`: Descripción del producto.
+        /// - `precio`: Precio del producto.
+        /// - `categoria`: Categoría del producto.
+        /// - `stock`: Cantidad disponible.
+        /// - `vendedor_id`: Identificador del vendedor.
+        ///
+        /// # Retorna
+        /// - Una nueva instancia de `Publicacion`.
+        pub fn new(
+            id_publicacion: u64,
+            producto: Producto,
+            precio: u64,
+            stock: u64,
+            vendedor_id: AccountId,
+        ) -> Publicacion {
+            Publicacion {
+                id_publicacion,
+                producto,
+                precio,
+                stock,
+                vendedor_id,
+            }
+        }
     }
 
 
@@ -976,90 +1060,6 @@ mod marketplace {
             } else {
                 // Ni comprador ni vendedor
                 Err(ErrorSistema::SinPermisos)
-            }
-        }
-    }
-
-    impl Publicacion {
-        /// Crea una nueva instancia de `Publicacion`.
-        ///
-        /// # Parámetros
-        /// - `id_publicacion`: Identificador único de la publicación.
-        /// - `nombre`: Nombre del producto.
-        /// - `descripcion`: Descripción del producto.
-        /// - `precio`: Precio del producto.
-        /// - `categoria`: Categoría del producto.
-        /// - `stock`: Cantidad disponible.
-        /// - `vendedor_id`: Identificador del vendedor.
-        ///
-        /// # Retorna
-        /// - Una nueva instancia de `Publicacion`.
-        pub fn new(
-            id_publicacion: u64,
-            producto: Producto,
-            precio: u64,
-            stock: u64,
-            vendedor_id: AccountId,
-        ) -> Publicacion {
-            Publicacion {
-                id_publicacion,
-                producto,
-                precio,
-                stock,
-                vendedor_id,
-            }
-        }
-    }
-
-    impl Usuario {
-        /// Crea una nueva instancia de `Usuario`.
-        ///
-        /// # Parámetros
-        /// - `account_id`: Identificador único de la cuenta.
-        /// - `username`: Nombre de usuario.
-        /// - `rol`: Rol del usuario (Comprador, Vendedor o Ambos).
-        ///
-        /// # Retorna
-        /// - Una nueva instancia de `Usuario`.
-        fn new(
-            account_id: AccountId,
-            username: String,
-            rol: Rol,
-        ) -> Usuario {
-            Usuario {
-                account_id,
-                username,
-                rol,
-                reputacion_como_comprador: 0,
-                reputacion_como_vendedor: 0,
-                cantidad_calificaciones_comprador: 0,
-                cantidad_calificaciones_vendedor: 0,
-            }
-        }
-
-        /// Valida que el usuario tenga rol `Vendedor` o `Ambos`.
-        ///
-        /// # Retorna
-        /// - `Ok(true)` si el usuario tiene permisos de vendedor.
-        /// - `Err(ErrorSistema::UsuarioNoEsVendedor)` si el usuario es solo comprador.
-        fn es_vendedor(&self) -> Result<bool, ErrorSistema> {
-            if matches!(self.rol, Rol::Comprador) {
-                Err(ErrorSistema::UsuarioNoEsVendedor)
-            } else {
-                Ok(true)
-            }
-        }
-
-        /// Valida que el usuario tenga rol `Comprador` o `Ambos`.
-        ///
-        /// # Retorna
-        /// - `Ok(true)` si el usuario tiene permisos de comprador.
-        /// - `Err(ErrorSistema::UsuarioNoEsComprador)` si el usuario es solo vendedor.
-        fn es_comprador(&self) -> Result<bool, ErrorSistema> {
-            if matches!(self.rol, Rol::Vendedor) {
-                Err(ErrorSistema::UsuarioNoEsComprador)
-            } else {
-                Ok(true)
             }
         }
     }
