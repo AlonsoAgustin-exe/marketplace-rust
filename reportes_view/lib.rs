@@ -129,7 +129,7 @@ mod reportes_view {
             let mut estadisticas: Vec<EstadisticaUsuario> = Vec::new();
             for orden in lista_ordenes {
                 if let Some(estadistica) = estadisticas.iter_mut().find(|u| u.get_usuario_id() == orden.get_comprador()) {
-                    estadistica.cant_ordenes += 1;
+                    estadistica.cant_ordenes = estadistica.cant_ordenes.saturating_add(1);
                 } else {
                     estadisticas.push(EstadisticaUsuario {
                         usuario: self.marketplace.get_usuario_by_id(orden.get_comprador()).unwrap(),

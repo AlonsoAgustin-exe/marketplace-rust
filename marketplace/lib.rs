@@ -1247,6 +1247,84 @@ pub mod marketplace {
             }
         }
 
+        mod tests_getters_usuario {
+            use super::*;
+
+            /// Verifica que get_rol retorna el rol correcto del usuario.
+            #[test]
+            fn tests_get_rol() {
+                let usuario_vendedor = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "vendedor".to_string(),
+                    Rol::Vendedor,
+                );
+
+                let usuario_comprador = Usuario::new(
+                    AccountId::from([0xBB; 32]),
+                    "comprador".to_string(),
+                    Rol::Comprador,
+                );
+
+                let usuario_ambos = Usuario::new(
+                    AccountId::from([0xCC; 32]),
+                    "ambos".to_string(),
+                    Rol::Ambos,
+                );
+
+                assert_eq!(usuario_vendedor.get_rol(), Rol::Vendedor);
+                assert_eq!(usuario_comprador.get_rol(), Rol::Comprador);
+                assert_eq!(usuario_ambos.get_rol(), Rol::Ambos);
+            }
+
+            /// Verifica que get_id retorna el AccountId correcto del usuario.
+            #[test]
+            fn tests_get_id() {
+                let account_id = AccountId::from([0xAA; 32]);
+                let usuario = Usuario::new(
+                    account_id,
+                    "test".to_string(),
+                    Rol::Vendedor,
+                );
+
+                assert_eq!(usuario.get_id(), account_id);
+            }
+
+            /// Verifica que get_reputacion_como_vendedor retorna el valor correcto.
+            #[test]
+            fn tests_get_reputacion_como_vendedor() {
+                let mut usuario = Usuario::new(
+                    AccountId::from([0xAA; 32]),
+                    "vendedor".to_string(),
+                    Rol::Vendedor,
+                );
+
+                // Inicialmente debe ser 0
+                assert_eq!(usuario.get_reputacion_como_vendedor(), 0);
+
+                // Simular asignación de reputación
+                usuario.reputacion_como_vendedor = 50;
+                assert_eq!(usuario.get_reputacion_como_vendedor(), 50);
+            }
+
+            /// Verifica que get_reputacion_como_comprador retorna el valor correcto.
+            #[test]
+            fn tests_get_reputacion_como_comprador() {
+                let mut usuario = Usuario::new(
+                    AccountId::from([0xBB; 32]),
+                    "comprador".to_string(),
+                    Rol::Comprador,
+                );
+
+                // Inicialmente debe ser 0
+                assert_eq!(usuario.get_reputacion_como_comprador(), 0);
+
+                // Simular asignación de reputación
+                usuario.reputacion_como_comprador = 75;
+                assert_eq!(usuario.get_reputacion_como_comprador(), 75);
+            }
+        }
+
+
         mod tests_registrar_usuario {
             use super::*;
 
@@ -1313,6 +1391,83 @@ pub mod marketplace {
                 assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
             }
         }
+
+        mod tests_get_usuario_by_id {
+            use super::*;
+
+            /// Verifica que se pueda obtener la información de un usuario registrado por su ID.
+            #[ink::test]
+            fn tests_get_usuario_by_id_encontrado() {
+                let mut marketplace = Marketplace::new();
+
+                let caller = AccountId::from([0xAA; 32]);
+                let username = "agustin".to_string();
+                let rol = Rol::Ambos;
+
+                let _ = marketplace._registrar_usuario(caller, username.clone(), rol.clone());
+
+                let result = marketplace._get_usuario_by_id(caller);
+                assert!(result.is_ok());
+                
+                if let Ok(usuario) = result {
+                    assert_eq!(usuario.account_id, caller);
+                    assert_eq!(usuario.username, username);
+                    assert_eq!(usuario.rol, rol);
+                }
+            }
+
+            /// Verifica que se retorne un error al intentar obtener un usuario no registrado por ID.
+            #[ink::test]
+            fn tests_get_usuario_by_id_no_encontrado() {
+                let marketplace = Marketplace::new();
+
+                let caller = AccountId::from([0xAA; 32]);
+
+                let result = marketplace._get_usuario_by_id(caller);
+
+                assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
+            }
+
+            /// Verifica que se puedan obtener múltiples usuarios diferentes por sus IDs.
+            #[ink::test]
+            fn tests_get_usuario_by_id_multiples_usuarios() {
+                let mut marketplace = Marketplace::new();
+
+                let usuario1_id = AccountId::from([0xAA; 32]);
+                let usuario2_id = AccountId::from([0xBB; 32]);
+                let usuario3_id = AccountId::from([0xCC; 32]);
+
+                let _ = marketplace._registrar_usuario(usuario1_id, "usuario1".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(usuario2_id, "usuario2".to_string(), Rol::Comprador);
+                let _ = marketplace._registrar_usuario(usuario3_id, "usuario3".to_string(), Rol::Ambos);
+
+                // Verificar que se puedan obtener todos los usuarios
+                let result1 = marketplace._get_usuario_by_id(usuario1_id);
+                let result2 = marketplace._get_usuario_by_id(usuario2_id);
+                let result3 = marketplace._get_usuario_by_id(usuario3_id);
+
+                assert!(result1.is_ok());
+                assert!(result2.is_ok());
+                assert!(result3.is_ok());
+
+                // Verificar que cada usuario tiene los datos correctos
+                if let Ok(usuario1) = result1 {
+                    assert_eq!(usuario1.username, "usuario1");
+                    assert_eq!(usuario1.rol, Rol::Vendedor);
+                }
+
+                if let Ok(usuario2) = result2 {
+                    assert_eq!(usuario2.username, "usuario2");
+                    assert_eq!(usuario2.rol, Rol::Comprador);
+                }
+
+                if let Ok(usuario3) = result3 {
+                    assert_eq!(usuario3.username, "usuario3");
+                    assert_eq!(usuario3.rol, Rol::Ambos);
+                }
+            }
+        }
+
 
         mod tests_cambiar_rol {
             use super::*;
@@ -1934,6 +2089,134 @@ pub mod marketplace {
             }
         }
 
+        mod tests_getters_orden_compra {
+            use super::*;
+
+            /// Verifica que get_cantidad retorna la cantidad correcta de productos en la orden.
+            #[ink::test]
+            fn tests_get_cantidad() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0, 5);
+
+                assert_eq!(marketplace.ordenes_compra[0].get_cantidad(), 5);
+            }
+
+            /// Verifica que get_categoria retorna la categoría correcta del producto en la orden.
+            #[ink::test]
+            fn tests_get_categoria() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                // Publicar producto de categoría Computacion
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Laptop".to_string(),
+                    "Dell XPS".to_string(),
+                    50000,
+                    Categoria::Computacion,
+                    10,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0, 1);
+
+                assert_eq!(marketplace.ordenes_compra[0].get_categoria(), Categoria::Computacion);
+            }
+
+            /// Verifica que get_comprador retorna el AccountId correcto del comprador.
+            #[ink::test]
+            fn tests_get_comprador() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador = AccountId::from([0xBB; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador, "comprador".to_string(), Rol::Comprador);
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Remera".to_string(),
+                    "algodon".to_string(),
+                    12000,
+                    Categoria::Ropa,
+                    20,
+                );
+
+                let _ = marketplace._ordenar_compra(comprador, 0, 3);
+
+                assert_eq!(marketplace.ordenes_compra[0].get_comprador(), comprador);
+            }
+
+            /// Verifica que los getters funcionan correctamente con múltiples órdenes.
+            #[ink::test]
+            fn tests_getters_multiples_ordenes() {
+                let mut marketplace = Marketplace::new();
+
+                let vendedor = AccountId::from([0xAA; 32]);
+                let comprador1 = AccountId::from([0xBB; 32]);
+                let comprador2 = AccountId::from([0xCC; 32]);
+
+                let _ = marketplace._registrar_usuario(vendedor, "vendedor".to_string(), Rol::Vendedor);
+                let _ = marketplace._registrar_usuario(comprador1, "comprador1".to_string(), Rol::Comprador);
+                let _ = marketplace._registrar_usuario(comprador2, "comprador2".to_string(), Rol::Comprador);
+
+                // Publicar dos productos de diferentes categorías
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Silla".to_string(),
+                    "Ergonómica".to_string(),
+                    15000,
+                    Categoria::Muebles,
+                    5,
+                );
+
+                let _ = marketplace._publicar(
+                    vendedor,
+                    "Martillo".to_string(),
+                    "Acero".to_string(),
+                    3000,
+                    Categoria::Herramientas,
+                    15,
+                );
+
+                // Crear dos órdenes
+                let _ = marketplace._ordenar_compra(comprador1, 0, 2);
+                let _ = marketplace._ordenar_compra(comprador2, 1, 4);
+
+                // Verificar primera orden
+                assert_eq!(marketplace.ordenes_compra[0].get_cantidad(), 2);
+                assert_eq!(marketplace.ordenes_compra[0].get_categoria(), Categoria::Muebles);
+                assert_eq!(marketplace.ordenes_compra[0].get_comprador(), comprador1);
+
+                // Verificar segunda orden
+                assert_eq!(marketplace.ordenes_compra[1].get_cantidad(), 4);
+                assert_eq!(marketplace.ordenes_compra[1].get_categoria(), Categoria::Herramientas);
+                assert_eq!(marketplace.ordenes_compra[1].get_comprador(), comprador2);
+            }
+        }
+
+
         mod tests_marcar_recibido {
             use super::*;
 
@@ -2258,23 +2541,8 @@ pub mod marketplace {
 
                 let _ = marketplace._ordenar_compra(caller2, 1_u32, 2_u32);
 
-                assert!(marketplace._get_ordenes(caller1).is_ok());
-
-                if let Ok(vec_ordenes) = marketplace._get_ordenes(caller1) {
-                    assert_eq!(vec_ordenes.len(), 2);
-                }
-            }
-
-            /// Verifica que un usuario no registrado no pueda obtener todas las órdenes.
-            #[ink::test]
-            fn tests_get_ordenes_usuario_no_encontrado() {
-                let marketplace = Marketplace::new();
-
-                let caller = AccountId::from([0xAA; 32]);
-
-                let result = marketplace._get_ordenes(caller);
-
-                assert_eq!(result, Err(ErrorSistema::UsuarioNoRegistrado));
+                let vec_ordenes = marketplace._get_ordenes();
+                assert_eq!(vec_ordenes.len(), 2);
             }
 
             /// Verifica que se retorne una lista vacía si no hay órdenes en el sistema.
@@ -2288,12 +2556,9 @@ pub mod marketplace {
 
                 let _ = marketplace._registrar_usuario(caller, username, rol);
 
-                let result = marketplace._get_ordenes(caller);
+                let vec_ordenes = marketplace._get_ordenes();
 
-                assert!(result.is_ok());
-                if let Ok(vec_ordenes) = result {
-                    assert_eq!(vec_ordenes.len(), 0);
-                }
+                assert_eq!(vec_ordenes.len(), 0);
             }
         }
 
