@@ -3,139 +3,147 @@
 #[ink::contract]
 mod reportes_view {
 
-    /// Defines the storage of your contract.
-    /// Add new fields to the below struct in order
-    /// to add new static storage fields to your contract.
+    use ink::prelude::vec::Vec;
+    use marketplace::marketplace::MarketplaceRef;
+    use marketplace::marketplace::{Publicacion, Producto, Usuario, ErrorSistema, Rol, Categoria};
+
     #[ink(storage)]
     pub struct ReportesView {
-        /// Stores a single `bool` value on the storage.
-        value: bool,
+        marketplace: MarketplaceRef,
+    }
+
+    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+    #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct EstadisticaCategoria {
+        categoria: Categoria,
+        total_ventas: u32,
+        calificacion_promedio: u32,
+    }
+
+    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+    #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct EstadisticaUsuario {
+        usuario: Usuario,
+        cant_ordenes: u32,
+    }
+
+    impl EstadisticaUsuario {
+        pub fn get_usuario_id(&self) -> AccountId {
+            self.usuario.get_id()
+        }
     }
 
     impl ReportesView {
-        /// Constructor that initializes the `bool` value to the given `init_value`.
+        /// Constructor que inicializa el contrato 
         #[ink(constructor)]
-        pub fn new(init_value: bool) -> Self {
-            Self { value: init_value }
+        pub fn new(marketplace_code_hash: Hash) -> Self {
+            let marketplace = MarketplaceRef::new()
+                .code_hash(marketplace_code_hash)
+                .endowment(0)
+                .salt_bytes([0xDE, 0xAD, 0xBE, 0xEF])
+                .instantiate();
+
+            Self { marketplace }
         }
 
-        /// Constructor that initializes the `bool` value to `false`.
+
+        /// Retorna los cinco vendedores con mayor reputación.
+        /// 
+        /// Filtra los usuarios cuyo rol es `Vendedor`, los ordena en forma
+        /// descendente según su reputación como vendedores y devuelve los
+        /// primeros cinco (o menos si no hay tantos).
         ///
-        /// Constructors can delegate to other constructors.
-        #[ink(constructor)]
-        pub fn default() -> Self {
-            Self::new(Default::default())
+        /// # Retorna
+        /// - Un `Vec<Usuario>` con hasta cinco vendedores mejor posicionados.
+        #[ink(message)]
+        pub fn get_top_cinco_vendedores(&self) -> Vec<Usuario> {
+            let mut vendedores: Vec<Usuario> = self
+                .marketplace
+                .get_lista_usuarios()
+                .into_iter()
+                .filter(|u| u.get_rol() == marketplace::marketplace::Rol::Vendedor)
+                .collect();
+
+            // Ordenar por reputación descendente
+            vendedores.sort_by(|a, b| {
+                b.get_reputacion_como_vendedor()
+                    .cmp(&a.get_reputacion_como_vendedor())
+            });
+
+            // Tomar los primeros 5 (o menos)
+            vendedores.into_iter().take(5).collect()
         }
 
-        /// A message that can be called on instantiated contracts.
-        /// This one flips the value of the stored `bool` from `true`
-        /// to `false` and vice versa.
+        /// Retorna los cinco compradores con mayor reputación.
+        /// 
+        /// Filtra los usuarios cuyo rol es `Comprador`, los ordena en forma
+        /// descendente según su reputación como compradores y devuelve los
+        /// primeros cinco (o menos si no hay tantos).
+        ///
+        /// # Retorna
+        /// - Un `Vec<Usuario>` con hasta cinco compradores mejor posicionados.
         #[ink(message)]
-        pub fn flip(&mut self) {
-            self.value = !self.value;
+        pub fn get_top_cinco_compradores(&self) -> Vec<Usuario> {
+            let mut compradores: Vec<Usuario> = self
+                .marketplace
+                .get_lista_usuarios()
+                .into_iter()
+                .filter(|u| u.get_rol() == marketplace::marketplace::Rol::Comprador)
+                .collect();
+
+            // Ordenar por reputación descendente
+            compradores.sort_by(|a, b| {
+                b.get_reputacion_como_comprador()
+                    .cmp(&a.get_reputacion_como_comprador())
+            });
+
+            // Tomar los primeros 5 (o menos)
+            compradores.into_iter().take(5).collect()
         }
 
-        /// Simply returns the current value of our `bool`.
+        // #[ink(message)]
+        // pub fn get_productos_mas_vendido(&self) -> Producto {
+            
+        // }
+
+        // #[ink(message)]
+        // pub fn get_estadistica_por_categoria(&self) -> Vec<EstadisticaCategoria> {
+        //     let lista_ordenes = self.marketplace.get_ordenes();
+        //     let mut estadisticas: Vec<EstadisticaCategoria> = Vec::new();
+        //     for orden in lista_ordenes {
+                
+        //     }
+        // }
+
+        /// Retorna la cantidad de ordenes por usuario.
+        /// 
+        /// Filtra las ordenes y cuenta cuántas ordenes tiene cada usuario.
+        ///
+        /// # Retorna
+        /// - Un `Vec<EstadisticaUsuario>` con la cantidad de ordenes por usuario.
         #[ink(message)]
-        pub fn get(&self) -> bool {
-            self.value
+        pub fn get_cant_ordenes_por_usuario(&self) -> Vec<EstadisticaUsuario> {
+            let lista_ordenes = self.marketplace.get_ordenes();
+            let mut estadisticas: Vec<EstadisticaUsuario> = Vec::new();
+            for orden in lista_ordenes {
+                if let Some(estadistica) = estadisticas.iter_mut().find(|u| u.get_usuario_id() == orden.get_comprador()) {
+                    estadistica.cant_ordenes += 1;
+                } else {
+                    estadisticas.push(EstadisticaUsuario {
+                        usuario: self.marketplace.get_usuario_by_id(orden.get_comprador()).unwrap(),
+                        cant_ordenes: 1,
+                    });
+                }    
+            }
+            estadisticas
         }
     }
 
-    /// Unit tests in Rust are normally defined within such a `#[cfg(test)]`
-    /// module and test functions are marked with a `#[test]` attribute.
-    /// The below code is technically just normal Rust code.
     #[cfg(test)]
     mod tests {
-        /// Imports all the definitions from the outer scope so we can use them here.
-        use super::*;
-
-        /// We test if the default constructor does its job.
-        #[ink::test]
-        fn default_works() {
-            let reportes_view = ReportesView::default();
-            assert_eq!(reportes_view.get(), false);
-        }
-
-        /// We test a simple use case of our contract.
-        #[ink::test]
-        fn it_works() {
-            let mut reportes_view = ReportesView::new(false);
-            assert_eq!(reportes_view.get(), false);
-            reportes_view.flip();
-            assert_eq!(reportes_view.get(), true);
-        }
+        
     }
 
-
-    /// This is how you'd write end-to-end (E2E) or integration tests for ink! contracts.
-    ///
-    /// When running these you need to make sure that you:
-    /// - Compile the tests with the `e2e-tests` feature flag enabled (`--features e2e-tests`)
-    /// - Are running a Substrate node which contains `pallet-contracts` in the background
-    #[cfg(all(test, feature = "e2e-tests"))]
-    mod e2e_tests {
-        /// Imports all the definitions from the outer scope so we can use them here.
-        use super::*;
-
-        /// A helper function used for calling contract messages.
-        use ink_e2e::ContractsBackend;
-
-        /// The End-to-End test `Result` type.
-        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-        /// We test that we can upload and instantiate the contract using its default constructor.
-        #[ink_e2e::test]
-        async fn default_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
-            // Given
-            let mut constructor = ReportesViewRef::default();
-
-            // When
-            let contract = client
-                .instantiate("reportes_view", &ink_e2e::alice(), &mut constructor)
-                .submit()
-                .await
-                .expect("instantiate failed");
-            let call_builder = contract.call_builder::<ReportesView>();
-
-            // Then
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), false));
-
-            Ok(())
-        }
-
-        /// We test that we can read and write a value from the on-chain contract.
-        #[ink_e2e::test]
-        async fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
-            // Given
-            let mut constructor = ReportesViewRef::new(false);
-            let contract = client
-                .instantiate("reportes_view", &ink_e2e::bob(), &mut constructor)
-                .submit()
-                .await
-                .expect("instantiate failed");
-            let mut call_builder = contract.call_builder::<ReportesView>();
-
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::bob(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), false));
-
-            // When
-            let flip = call_builder.flip();
-            let _flip_result = client
-                .call(&ink_e2e::bob(), &flip)
-                .submit()
-                .await
-                .expect("flip failed");
-
-            // Then
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::bob(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), true));
-
-            Ok(())
-        }
-    }
 }
