@@ -8,16 +8,23 @@ edition = "2021"
 ink = { version = "5.1.1", default-features = false }
 base64ct = "=1.6.0"
 
+# para compartir tipos complejos de datos (structs, enums, etc)
+parity-scale-codec = { version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"] }
+
 [dev-dependencies]
 ink_e2e = { version = "5.0.0" }
 
 [lib]
+name = "marketplace"
 path = "lib.rs"
 
 [features]
 default = ["std"]
 std = [
     "ink/std",
+    "parity-scale-codec/std",
+    "scale-info/std",
 ]
 ink-as-dependency = []
 e2e-tests = []

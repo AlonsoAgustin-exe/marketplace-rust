@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 #[ink::contract]
-mod marketplace {
+pub mod marketplace {
     use ink::prelude::string::String;
     use ink::prelude::vec::Vec;
     use ink::storage::Mapping;
@@ -10,6 +10,7 @@ mod marketplace {
     pub struct Marketplace {
         /// storage de usuarios
         usuarios: Mapping<AccountId, Usuario>, // (id_usuario, datos_usuario)
+        lista_id_usuarios: Vec<AccountId>,
 
         /// storage general de publicaciones y ordenes de compra
         publicaciones: Vec<Publicacion>,
@@ -175,6 +176,38 @@ mod marketplace {
                 Ok(true)
             }
         }
+
+        /// Retorna la reputación acumulada como vendedor.
+        ///
+        /// # Retorna
+        /// - Un `u32` que representa la reputación del usuario como vendedor.
+        pub fn get_reputacion_como_vendedor(&self) -> u32 {
+            self.reputacion_como_vendedor
+        }
+
+        /// Retorna la reputación acumulada como comprador.
+        ///
+        /// # Retorna
+        /// - Un `u32` que representa la reputación del usuario como comprador.
+        pub fn get_reputacion_como_comprador(&self) -> u32 {
+            self.reputacion_como_comprador
+        }
+
+        /// Retorna el rol del usuario.
+        ///
+        /// # Retorna
+        /// - Un `Rol` que representa el rol del usuario.
+        pub fn get_rol(&self) -> Rol {
+            self.rol.clone()
+        }
+
+        /// Retorna el `AccountId` del usuario.
+        ///
+        /// # Retorna
+        /// - Un `AccountId` que representa el `AccountId` del usuario.
+        pub fn get_id(&self) -> AccountId {
+            self.account_id
+        }
     }
 
 
@@ -317,6 +350,32 @@ mod marketplace {
         calificacion_al_comprador: Option<u8>,
     }
 
+    impl OrdenCompra {
+        /// Retorna la cantidad de productos comprados.
+        ///
+        /// # Retorna
+        /// - `u32` con la cantidad de productos comprados.
+        pub fn get_cantidad(&self) -> u32 {
+            self.cantidad
+        }
+
+        /// Retorna la categoría del producto comprado.
+        ///
+        /// # Retorna
+        /// - `Categoria` con la categoría del producto comprado.
+        pub fn get_categoria(&self) -> Categoria {
+            self.publicacion.producto.categoria.clone()
+        }
+
+        /// Retorna el comprador de la orden.
+        ///
+        /// # Retorna
+        /// - `AccountId` con el comprador de la orden.
+        pub fn get_comprador(&self) -> AccountId {
+            self.comprador_id
+        }
+    }
+
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
     #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
@@ -336,6 +395,11 @@ mod marketplace {
         Cancelada,
     }
 
+    impl Default for Marketplace {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
     impl Marketplace {
         /// Constructor del contrato `Marketplace`.
@@ -346,11 +410,21 @@ mod marketplace {
         pub fn new() -> Self {
             Self {
                 usuarios: Default::default(),
+                lista_id_usuarios: Default::default(),
                 publicaciones: Default::default(),
                 ordenes_compra: Default::default(),
                 publicaciones_mapping: Default::default(),
                 ordenes_compra_mapping: Default::default(),
             }
+        }
+
+        #[ink(message)]
+        pub fn get_lista_usuarios(&self) -> Vec<Usuario> {
+            let mut lista_usuarios: Vec<Usuario> = Vec::new();
+            for id in self.lista_id_usuarios.iter() {
+                lista_usuarios.push(self.usuarios.get(id).unwrap());
+            }
+            lista_usuarios
         }
 
         /// Registra un nuevo usuario en el sistema.
@@ -393,6 +467,7 @@ mod marketplace {
 
             //Almacena el nuevo usuario en el sistema
             self.usuarios.insert(caller, &usuario);
+            self.lista_id_usuarios.push(caller);
 
             //Retorna el usuario creado
             Ok(usuario)
@@ -423,6 +498,36 @@ mod marketplace {
         /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
         fn _get_usuario(&self, caller: AccountId) -> Result<Usuario, ErrorSistema> {
             self.usuarios.get(caller).ok_or(ErrorSistema::UsuarioNoRegistrado)
+        }
+
+        /// Obtiene la información de un usuario específico.
+        ///
+        /// Delegará la obtención al método interno `_get_usuario_by_id`.
+        ///
+        /// # Parámetros
+        /// - `account_id`: Identificador de la cuenta del usuario a consultar.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` con los datos del usuario.
+        /// - `Err(ErrorSistema::UsuarioNoRegistrado)` si el usuario no está registrado.
+        #[ink(message)]
+        #[ignore]
+        pub fn get_usuario_by_id(&self, account_id: AccountId) -> Result<Usuario, ErrorSistema> {
+            self._get_usuario_by_id(account_id)
+        }
+
+        /// Método interno que obtiene la información de un usuario específico.
+        ///
+        /// # Parámetros
+        /// - `account_id`: Identificador de la cuenta del usuario a consultar.
+        ///
+        /// # Retorna
+        /// - `Ok(Usuario)` con los datos del usuario.
+        /// - `Err(ErrorSistema::UsuarioNoRegistrado)` si el usuario no está registrado.
+        ///
+        /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
+        fn _get_usuario_by_id(&self, account_id: AccountId) -> Result<Usuario, ErrorSistema> {
+            self.usuarios.get(account_id).ok_or(ErrorSistema::UsuarioNoRegistrado)
         }
 
         /// Cambia el rol del usuario que llama al contrato.
@@ -773,27 +878,21 @@ mod marketplace {
         /// Delegará la obtención al método interno `_get_ordenes`.
         ///
         /// # Retorna
-        /// - `Ok(Vec<OrdenCompra>)` con la lista completa de órdenes.
-        /// - `Err(ErrorSistema)` si el usuario solicitante no está registrado.
+        /// - `Vec<OrdenCompra>` con la lista completa de órdenes.
         #[ink(message)]
         #[ignore]
-        pub fn get_ordenes(&self) -> Result<Vec<OrdenCompra>, ErrorSistema> {
-            self._get_ordenes(self.env().caller())
+        pub fn get_ordenes(&self) -> Vec<OrdenCompra> {
+            self._get_ordenes()
         }
 
         /// Método interno que obtiene todas las órdenes de compra.
         ///
-        /// # Parámetros
-        /// - `caller`: Identificador de la cuenta que realiza la consulta.
-        ///
         /// # Retorna
-        /// - `Ok(Vec<OrdenCompra>)` con la lista completa de órdenes.
-        /// - `Err(ErrorSistema)` si el usuario no está registrado.
+        /// - `Vec<OrdenCompra>` con la lista completa de órdenes.
         ///
         /// Nota: Este método es auxiliar y no se expone como mensaje del contrato.
-        fn _get_ordenes(&self, caller: AccountId) -> Result<Vec<OrdenCompra>, ErrorSistema> {
-            self._get_usuario(caller)?;
-            Ok(self.ordenes_compra.clone())
+        fn _get_ordenes(&self) -> Vec<OrdenCompra> {
+            self.ordenes_compra.clone()
         }
 
         /// Marca una orden de compra como enviada.
@@ -928,7 +1027,7 @@ mod marketplace {
             calificacion: u8,
         ) -> Result<OrdenCompra, ErrorSistema> {
             // Validar rango de calificación
-            if calificacion < 1 || calificacion > 5 {
+            if !(1..=5).contains(&calificacion) {
                 return Err(ErrorSistema::CalificacionInvalida);
             }
 
