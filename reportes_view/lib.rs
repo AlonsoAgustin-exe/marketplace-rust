@@ -18,7 +18,7 @@ mod reportes_view {
     pub struct EstadisticaCategoria {
         categoria: Categoria,
         total_ventas: u32,
-        calificacion_promedio: u32,
+        //calificacion_promedio: u32,
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
@@ -108,14 +108,29 @@ mod reportes_view {
             
         // }
 
-        // #[ink(message)]
-        // pub fn get_estadistica_por_categoria(&self) -> Vec<EstadisticaCategoria> {
-        //     let lista_ordenes = self.marketplace.get_ordenes();
-        //     let mut estadisticas: Vec<EstadisticaCategoria> = Vec::new();
-        //     for orden in lista_ordenes {
-                
-        //     }
-        // }
+        /// Retorna las estadísticas por categoría.
+        ///
+        /// Filtra las ordenes y cuenta cuántas ventas hay por categoría.
+        ///
+        /// # Retorna
+        /// - Un `Vec<EstadisticaCategoria>` con la cantidad de ventas por categoría.
+        #[ink(message)]
+        pub fn get_estadistica_por_categoria(&self) -> Vec<EstadisticaCategoria> {
+            let lista_ordenes = self.marketplace.get_ordenes();
+            let mut estadisticas: Vec<EstadisticaCategoria> = Vec::new();
+            for orden in lista_ordenes {
+                if let Some(estadistica) = estadisticas.iter_mut().find(|c| c.categoria == orden.get_publicacion().get_categoria()) {
+                    estadistica.total_ventas += orden.get_cantidad();
+                } else {
+                    estadisticas.push(EstadisticaCategoria {
+                        categoria: orden.get_publicacion().get_categoria(),
+                        total_ventas: orden.get_cantidad(),
+                        //calificacion_promedio: orden.get_producto().get_calificacion_promedio(),
+                    });
+                }
+            }
+            estadisticas
+        }
 
         /// Retorna la cantidad de ordenes por usuario.
         /// 

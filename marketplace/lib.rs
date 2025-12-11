@@ -235,18 +235,14 @@ pub mod marketplace {
 
         /// Descripción del producto.
         descripcion: String,
-
-        /// Categoría a la que pertenece el producto.
-        categoria: Categoria,
     }
 
     impl Producto {
         /// Crea un nuevo producto.
-        pub fn new(nombre: String, descripcion: String, categoria: Categoria) -> Self {
+        pub fn new(nombre: String, descripcion: String) -> Self {
             Self {
                 nombre,
                 descripcion,
-                categoria,
             }
         }
     }
@@ -264,6 +260,9 @@ pub mod marketplace {
 
         /// Precio del producto en la unidad base del token.
         precio: u64,
+
+        /// Categoría a la que pertenece el producto.
+        categoria: Categoria,
 
         /// Cantidad disponible en stock.
         stock: u64,
@@ -290,6 +289,7 @@ pub mod marketplace {
             id_publicacion: u64,
             producto: Producto,
             precio: u64,
+            categoria: Categoria,
             stock: u64,
             vendedor_id: AccountId,
         ) -> Publicacion {
@@ -297,9 +297,14 @@ pub mod marketplace {
                 id_publicacion,
                 producto,
                 precio,
+                categoria,
                 stock,
                 vendedor_id,
             }
+        }
+
+        pub fn get_categoria(&self) -> Categoria {
+            self.categoria.clone()
         }
     }
 
@@ -359,20 +364,20 @@ pub mod marketplace {
             self.cantidad
         }
 
-        /// Retorna la categoría del producto comprado.
-        ///
-        /// # Retorna
-        /// - `Categoria` con la categoría del producto comprado.
-        pub fn get_categoria(&self) -> Categoria {
-            self.publicacion.producto.categoria.clone()
-        }
-
         /// Retorna el comprador de la orden.
         ///
         /// # Retorna
         /// - `AccountId` con el comprador de la orden.
         pub fn get_comprador(&self) -> AccountId {
             self.comprador_id
+        }
+
+        /// Retorna la publicación asociada a la orden.
+        ///
+        /// # Retorna
+        /// - `Publicacion` con la publicación asociada a la orden.
+        pub fn get_publicacion(&self) -> Publicacion {
+            self.publicacion.clone()
         }
     }
 
@@ -633,9 +638,9 @@ pub mod marketplace {
                 Producto::new(
                     nombre,
                     descripcion,
-                    categoria,
                 ),
                 precio,
+                categoria,
                 stock,
                 usuario.account_id,
             );
@@ -2140,7 +2145,7 @@ pub mod marketplace {
 
                 let _ = marketplace._ordenar_compra(comprador, 0, 1);
 
-                assert_eq!(marketplace.ordenes_compra[0].get_categoria(), Categoria::Computacion);
+                assert_eq!(marketplace.ordenes_compra[0].publicacion.get_categoria(), Categoria::Computacion);
             }
 
             /// Verifica que get_comprador retorna el AccountId correcto del comprador.
@@ -2165,7 +2170,7 @@ pub mod marketplace {
 
                 let _ = marketplace._ordenar_compra(comprador, 0, 3);
 
-                assert_eq!(marketplace.ordenes_compra[0].get_comprador(), comprador);
+                assert_eq!(marketplace.ordenes_compra[0].comprador_id, comprador);
             }
 
             /// Verifica que los getters funcionan correctamente con múltiples órdenes.
@@ -2206,12 +2211,12 @@ pub mod marketplace {
 
                 // Verificar primera orden
                 assert_eq!(marketplace.ordenes_compra[0].get_cantidad(), 2);
-                assert_eq!(marketplace.ordenes_compra[0].get_categoria(), Categoria::Muebles);
+                assert_eq!(marketplace.ordenes_compra[0].publicacion.categoria, Categoria::Muebles);
                 assert_eq!(marketplace.ordenes_compra[0].get_comprador(), comprador1);
 
                 // Verificar segunda orden
                 assert_eq!(marketplace.ordenes_compra[1].get_cantidad(), 4);
-                assert_eq!(marketplace.ordenes_compra[1].get_categoria(), Categoria::Herramientas);
+                assert_eq!(marketplace.ordenes_compra[1].publicacion.categoria, Categoria::Herramientas);
                 assert_eq!(marketplace.ordenes_compra[1].get_comprador(), comprador2);
             }
         }
