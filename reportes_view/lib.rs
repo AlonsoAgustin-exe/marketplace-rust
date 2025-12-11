@@ -35,6 +35,14 @@ mod reportes_view {
         }
     }
 
+    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+    #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct EstadisticaProducto {
+        producto: Producto,
+        cant_ventas: u32,
+    }
+
     impl ReportesView {
         /// Constructor que inicializa el contrato 
         #[ink(constructor)]
@@ -103,10 +111,31 @@ mod reportes_view {
             compradores.into_iter().take(5).collect()
         }
 
-        // #[ink(message)]
-        // pub fn get_productos_mas_vendido(&self) -> Producto {
-            
-        // }
+        /// Retorna los productos con mayor ventas.
+        /// 
+        /// Filtra las ordenes y cuenta cuántas ventas hay por producto.
+        ///
+        /// # Retorna
+        /// - Un `Vec<EstadisticaProducto>` con todos los productos ordenados de mayor a menor ventas.
+        #[ink(message)]
+        pub fn get_productos_mas_vendido(&self) -> Vec<EstadisticaProducto> {
+            let lista_ordenes = self.marketplace.get_ordenes();
+            let mut productos: Vec<EstadisticaProducto> = Vec::new();
+            for orden in lista_ordenes {
+                if let Some(producto) = productos.iter_mut().find(|u| u.producto == orden.get_publicacion().get_producto()) {
+                    producto.cant_ventas += orden.get_cantidad();
+                } else {
+                    productos.push(EstadisticaProducto {
+                        producto: orden.get_publicacion().get_producto(),
+                        cant_ventas: orden.get_cantidad(),
+                    });
+                }
+            }
+            productos.sort_by(|a, b| {
+                b.cant_ventas.cmp(&a.cant_ventas)
+            });
+            productos
+        }
 
         /// Retorna las estadísticas por categoría.
         ///
@@ -125,7 +154,6 @@ mod reportes_view {
                     estadisticas.push(EstadisticaCategoria {
                         categoria: orden.get_publicacion().get_categoria(),
                         total_ventas: orden.get_cantidad(),
-                        //calificacion_promedio: orden.get_producto().get_calificacion_promedio(),
                     });
                 }
             }

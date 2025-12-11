@@ -303,8 +303,20 @@ pub mod marketplace {
             }
         }
 
+        /// Retorna la categoría de la publicación.
+        ///
+        /// # Retorna
+        /// - Un `Categoria` que representa la categoría de la publicación.
         pub fn get_categoria(&self) -> Categoria {
             self.categoria.clone()
+        }
+
+        /// Retorna el producto de la publicación.
+        ///
+        /// # Retorna
+        /// - Un `Producto` que representa el producto de la publicación.
+        pub fn get_producto(&self) -> Producto {
+            self.producto.clone()
         }
     }
 
