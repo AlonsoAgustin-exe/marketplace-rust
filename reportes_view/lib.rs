@@ -5,7 +5,7 @@ mod reportes_view {
 
     use ink::prelude::vec::Vec;
     use marketplace::marketplace::MarketplaceRef;
-    use marketplace::marketplace::{Publicacion, Producto, Usuario, ErrorSistema, Rol, Categoria};
+    use marketplace::marketplace::{Producto, Usuario, Categoria};
 
     #[ink(storage)]
     pub struct ReportesView {
@@ -18,7 +18,6 @@ mod reportes_view {
     pub struct EstadisticaCategoria {
         categoria: Categoria,
         total_ventas: u32,
-        //calificacion_promedio: u32,
     }
 
     #[ink::scale_derive(Encode, Decode, TypeInfo)]
@@ -123,7 +122,7 @@ mod reportes_view {
             let mut productos: Vec<EstadisticaProducto> = Vec::new();
             for orden in lista_ordenes {
                 if let Some(producto) = productos.iter_mut().find(|u| u.producto == orden.get_publicacion().get_producto()) {
-                    producto.cant_ventas += orden.get_cantidad();
+                    producto.cant_ventas = producto.cant_ventas.saturating_add(orden.get_cantidad());
                 } else {
                     productos.push(EstadisticaProducto {
                         producto: orden.get_publicacion().get_producto(),
@@ -149,7 +148,7 @@ mod reportes_view {
             let mut estadisticas: Vec<EstadisticaCategoria> = Vec::new();
             for orden in lista_ordenes {
                 if let Some(estadistica) = estadisticas.iter_mut().find(|c| c.categoria == orden.get_publicacion().get_categoria()) {
-                    estadistica.total_ventas += orden.get_cantidad();
+                    estadistica.total_ventas = estadistica.total_ventas.saturating_add(orden.get_cantidad());
                 } else {
                     estadisticas.push(EstadisticaCategoria {
                         categoria: orden.get_publicacion().get_categoria(),
